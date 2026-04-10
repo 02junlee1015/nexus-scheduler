@@ -1,0 +1,142 @@
+// PostgreSQL for production (Vercel, Neon, etc.). Local dev uses the same URL in .env.
+// https://www.prisma.io/docs/orm/reference/prisma-schema-reference
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions Session[]
+
+  tasks            Task[]
+  calendarEvents   CalendarEvent[]
+  friendshipsOut   Friendship[]            @relation("FriendRequester")
+  friendshipsIn    Friendship[]            @relation("FriendAddressee")
+  assignmentsSent  AssignedTaskRequest[]   @relation("AssignmentSender")
+  assignmentsRecv  AssignedTaskRequest[]   @relation("AssignmentRecipient")
+  notifications    Notification[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+}
+
+/// Friend request: requester → addressee. Unique per direction.
+model Friendship {
+  id              String   @id @default(cuid())
+  requesterUserId String
+  addresseeUserId String
+  /// pending | accepted | rejected | cancelled
+  status          String   @default("pending")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  requester User @relation("FriendRequester", fields: [requesterUserId], references: [id], onDelete: Cascade)
+  addressee User @relation("FriendAddressee", fields: [addresseeUserId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterUserId, addresseeUserId])
+}
+
+/// Collaborative task handoff — separate from personal Task until accepted.
+model AssignedTaskRequest {
+  id                       String    @id @default(cuid())
+  senderUserId             String
+  recipientUserId          String
+  title                    String
+  detail                   String    @default("")
+  deadline                 DateTime?
+  expectedWorkload         Int       @default(2)
+  /// pending | accepted | adjustment_requested | updated_resubmitted | cancelled | declined
+  status                   String    @default("pending")
+  recipientResponseMessage String    @default("")
+  proposedDeadline         DateTime?
+  linkedRecipientTaskId    String?   @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sender    User @relation("AssignmentSender", fields: [senderUserId], references: [id], onDelete: Cascade)
+  recipient User @relation("AssignmentRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade)
+  linkedRecipientTask Task? @relation("AssignmentRecipientTask", fields: [linkedRecipientTaskId], references: [id], onDelete: SetNull)
+
+  @@index([recipientUserId, status])
+  @@index([senderUserId, status])
+}
+
+model Notification {
+  id                String   @id @default(cuid())
+  userId            String
+  type              String
+  title             String
+  message           String   @default("")
+  relatedEntityType String   @default("")
+  relatedEntityId   String   @default("")
+  isRead            Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+}
+
+/// To-do item. Scoped per user. When dueDate is set, a linked CalendarEvent is kept in sync.
+model Task {
+  id               String    @id @default(cuid())
+  userId           String
+  title            String
+  detail           String    @default("")
+  classification   String    @default("")
+  expectedWorkload Int       @default(2)
+  dueDate          DateTime?
+  status           String    @default("todo")
+  source           String    @default("manual")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  calendarEvent     CalendarEvent?
+  fulfillsAssignment AssignedTaskRequest? @relation("AssignmentRecipientTask")
+
+  @@index([userId])
+  @@index([userId, status])
+}
+
+model CalendarEvent {
+  id               String   @id @default(cuid())
+  userId           String
+  title            String
+  detail           String   @default("")
+  expectedWorkload Int      @default(2)
+  startDateTime    DateTime
+  endDateTime      DateTime
+  linkedTaskId     String?  @unique
+  source           String   @default("manual")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task Task? @relation(fields: [linkedTaskId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([startDateTime])
+}
