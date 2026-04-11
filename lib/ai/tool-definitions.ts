@@ -219,7 +219,7 @@ export const schedulerTools = [
     function: {
       name: "assignTaskToFriend",
       description:
-        "Assign a task proposal to an accepted friend by their email. They must accept before it becomes a real task.",
+        "Assign a task proposal to an accepted friend by their email. They choose workload when accepting; they must accept before it becomes a real task.",
       parameters: {
         type: "object",
         properties: {
@@ -227,7 +227,6 @@ export const schedulerTools = [
           title: { type: "string" },
           detail: { type: "string" },
           deadline: { type: "string", description: "ISO datetime or null" },
-          expectedWorkload: { type: "integer", enum: [1, 2, 3] },
         },
         required: ["recipientEmail", "title"],
       },

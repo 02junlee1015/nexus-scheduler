@@ -179,7 +179,6 @@ export async function executeSchedulerTool(
             title: z.string(),
             detail: z.string().optional(),
             deadline: z.string().nullable().optional(),
-            expectedWorkload: z.number().int().min(1).max(3).optional(),
           })
           .parse(rawArgs);
         const rid = await resolveUserIdByEmail(a.recipientEmail);
@@ -189,7 +188,6 @@ export async function executeSchedulerTool(
           title: a.title,
           detail: a.detail,
           deadline: a.deadline ?? undefined,
-          expectedWorkload: a.expectedWorkload,
         });
         return { ok: true, result: row };
       }

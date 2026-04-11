@@ -13,7 +13,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils/cn";
-import { workloadVisual, type WorkloadLevel } from "@/lib/constants/workload";
 import { UserRound } from "lucide-react";
 
 type FriendshipDTO = {
@@ -60,7 +59,6 @@ export function FriendsClient() {
   const [title, setTitle] = useState("");
   const [detail, setDetail] = useState("");
   const [deadline, setDeadline] = useState("");
-  const [workload, setWorkload] = useState<WorkloadLevel>(2);
   const [assignError, setAssignError] = useState<string | null>(null);
   const [assignLoading, setAssignLoading] = useState(false);
 
@@ -135,7 +133,6 @@ export function FriendsClient() {
     setTitle("");
     setDetail("");
     setDeadline("");
-    setWorkload(2);
     setAssignError(null);
     setAssignOpen(true);
   }
@@ -150,7 +147,6 @@ export function FriendsClient() {
         recipientUserId: selected.peer.id,
         title: title.trim(),
         detail: detail.trim() || undefined,
-        expectedWorkload: workload,
       };
       if (deadline.trim()) {
         body.deadline = new Date(deadline).toISOString();
@@ -451,23 +447,10 @@ export function FriendsClient() {
                 onChange={(e) => setDeadline(e.target.value)}
                 className="mt-1.5"
               />
-            </div>
-            <div>
-              <Label htmlFor="asg-wl">Workload</Label>
-              <select
-                id="asg-wl"
-                value={workload}
-                onChange={(e) =>
-                  setWorkload(Number(e.target.value) as WorkloadLevel)
-                }
-                className="mt-1.5 flex h-10 w-full rounded-2xl border border-neutral-200/90 bg-white/80 px-4 text-sm dark:border-neutral-700 dark:bg-neutral-900/50"
-              >
-                {([1, 2, 3] as const).map((lvl) => (
-                  <option key={lvl} value={lvl}>
-                    {lvl} — {workloadVisual[lvl].label}
-                  </option>
-                ))}
-              </select>
+              <p className="mt-1.5 text-xs text-neutral-500">
+                Workload is chosen by them when they accept (affects their to-do
+                and calendar block size).
+              </p>
             </div>
             {assignError ? (
               <p className="text-sm text-red-600 dark:text-red-400">

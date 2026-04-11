@@ -404,8 +404,8 @@ export function AssignmentDetailClient({ id }: { id: string }) {
             <div className="max-w-xs">
               <Label htmlFor="accept-wl">Your workload (to-do & calendar)</Label>
               <p className="mt-1 text-xs text-neutral-500">
-                Sender suggested {row.expectedWorkload}; pick what fits you.
-                Due date stays what they set.
+                Pick what fits you — it sets block length on your calendar.
+                Due date is what they set unless you requested a change.
               </p>
               <select
                 id="accept-wl"
