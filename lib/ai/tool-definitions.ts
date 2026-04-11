@@ -185,7 +185,7 @@ export const schedulerTools = [
     function: {
       name: "sendFriendRequest",
       description:
-        "Send a friend request by email. If they already have an account, they get an in-app request. If not, they receive an invite email with a sign-up link; after they register with that address, your friend request appears for them.",
+        "Send a friend request using the other person's Nexus sign-up email. They must already have an account.",
       parameters: {
         type: "object",
         properties: { email: { type: "string" } },

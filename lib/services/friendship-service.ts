@@ -1,5 +1,3 @@
-import { randomBytes } from "crypto";
-import { addDays } from "date-fns";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import * as notificationService from "@/lib/services/notification-service";
@@ -21,10 +19,6 @@ export type FriendInvitePendingDTO = {
   createdAt: string;
   expiresAt: string;
 };
-
-export type SendFriendRequestResult =
-  | { kind: "friendship"; data: FriendshipDTO }
-  | { kind: "invite_sent"; email: string; resent: boolean };
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -154,58 +148,12 @@ export async function fulfillFriendInvitesAfterUserCreated(
 export async function sendFriendRequest(
   requesterUserId: string,
   emailRaw: string,
-): Promise<SendFriendRequestResult> {
+): Promise<FriendshipDTO> {
   const email = normalizeEmail(emailRaw);
   if (!email.includes("@")) throw new Error("INVALID_EMAIL");
 
   const addressee = await prisma.user.findUnique({ where: { email } });
-
-  if (!addressee) {
-    const me = await prisma.user.findUniqueOrThrow({ where: { id: requesterUserId } });
-    if (normalizeEmail(me.email) === email) throw new Error("SELF");
-
-    const existingInvite = await prisma.friendInvite.findUnique({
-      where: {
-        inviterUserId_inviteeEmail: {
-          inviterUserId: requesterUserId,
-          inviteeEmail: email,
-        },
-      },
-    });
-    const token = randomBytes(32).toString("base64url");
-    const expiresAt = addDays(new Date(), 14);
-    await prisma.friendInvite.upsert({
-      where: {
-        inviterUserId_inviteeEmail: {
-          inviterUserId: requesterUserId,
-          inviteeEmail: email,
-        },
-      },
-      create: {
-        token,
-        inviterUserId: requesterUserId,
-        inviteeEmail: email,
-        expiresAt,
-      },
-      update: { token, expiresAt },
-    });
-
-    const requester = await prisma.user.findUniqueOrThrow({
-      where: { id: requesterUserId },
-    });
-    await emailService.sendCollaborationEmail({
-      to: email,
-      subject: "[Nexus Scheduler] 친구 초대",
-      text: `${requester.name || requester.email}님이 Nexus Scheduler에서 당신을 초대했습니다. 링크로 가입하면 친구 요청을 받을 수 있습니다. 가입 시 이 메일 주소를 사용해 주세요.`,
-      path: `/register?friendInvite=${encodeURIComponent(token)}`,
-    });
-
-    return {
-      kind: "invite_sent",
-      email,
-      resent: !!existingInvite,
-    };
-  }
+  if (!addressee) throw new Error("USER_NOT_FOUND");
 
   if (addressee.id === requesterUserId) throw new Error("SELF");
 
@@ -253,8 +201,7 @@ export async function sendFriendRequest(
     path: "/friends",
   });
 
-  const data = await mapFriendship(row.id, requesterUserId);
-  return { kind: "friendship", data };
+  return mapFriendship(row.id, requesterUserId);
 }
 
 export async function cancelFriendInvite(
@@ -385,11 +332,6 @@ export async function listFriendships(viewerUserId: string): Promise<{
     orderBy: { updatedAt: "desc" },
   });
 
-  const invites = await prisma.friendInvite.findMany({
-    where: { inviterUserId: viewerUserId, expiresAt: { gt: new Date() } },
-    orderBy: { createdAt: "desc" },
-  });
-
   const incoming: FriendshipDTO[] = [];
   const outgoing: FriendshipDTO[] = [];
   const accepted: FriendshipDTO[] = [];
@@ -414,14 +356,7 @@ export async function listFriendships(viewerUserId: string): Promise<{
     }
   }
 
-  const pendingInvites: FriendInvitePendingDTO[] = invites.map((i) => ({
-    id: i.id,
-    email: i.inviteeEmail,
-    createdAt: i.createdAt.toISOString(),
-    expiresAt: i.expiresAt.toISOString(),
-  }));
-
-  return { incoming, outgoing, accepted, pendingInvites };
+  return { incoming, outgoing, accepted, pendingInvites: [] };
 }
 
 export async function assertAcceptedFriends(

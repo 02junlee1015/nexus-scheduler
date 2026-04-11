@@ -26,25 +26,20 @@ export async function POST(req: Request) {
     );
   }
   try {
-    const result = await friendshipService.sendFriendRequest(
+    const row = await friendshipService.sendFriendRequest(
       auth.user.id,
       parsed.data.email,
     );
-    if (result.kind === "invite_sent") {
-      return NextResponse.json(
-        {
-          kind: "invite_sent",
-          email: result.email,
-          resent: result.resent,
-        },
-        { status: 201 },
-      );
-    }
-    return NextResponse.json(result.data, { status: 201 });
+    return NextResponse.json(row, { status: 201 });
   } catch (e) {
     const code = e instanceof Error ? e.message : "ERROR";
     const map: Record<string, { status: number; error: string }> = {
       INVALID_EMAIL: { status: 400, error: "Invalid email" },
+      USER_NOT_FOUND: {
+        status: 404,
+        error:
+          "No member uses that sign-up email. They need an account before you can connect.",
+      },
       SELF: { status: 400, error: "You cannot add yourself" },
       ALREADY_FRIENDS: { status: 409, error: "Already friends" },
       ALREADY_SENT: { status: 409, error: "Request already sent" },

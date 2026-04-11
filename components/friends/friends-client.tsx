@@ -26,18 +26,11 @@ type FriendshipDTO = {
   peer: { id: string; email: string; name: string };
 };
 
-type PendingInviteDTO = {
-  id: string;
-  email: string;
-  createdAt: string;
-  expiresAt: string;
-};
-
 type FriendsPayload = {
   incoming: FriendshipDTO[];
   outgoing: FriendshipDTO[];
   accepted: FriendshipDTO[];
-  pendingInvites: PendingInviteDTO[];
+  pendingInvites?: { id: string; email: string; createdAt: string; expiresAt: string }[];
 };
 
 function initials(name: string, email: string) {
@@ -103,21 +96,15 @@ export function FriendsClient() {
         );
         return;
       }
-      if (
-        j &&
-        typeof j === "object" &&
-        "kind" in j &&
-        (j as { kind?: string }).kind === "invite_sent"
-      ) {
-        const inv = j as { email?: string; resent?: boolean };
-        setFormSuccess(
-          inv.resent
-            ? `Invite resent to ${inv.email ?? "that address"} with a fresh link.`
-            : `Invite sent to ${inv.email ?? "that address"}. They can sign up from the email; you’ll see a pending invite here until they join.`,
-        );
-      } else {
-        setFormSuccess("Friend request sent.");
-      }
+      const peerEmail =
+        j && typeof j === "object" && "peer" in j
+          ? (j as { peer?: { email?: string } }).peer?.email
+          : undefined;
+      setFormSuccess(
+        peerEmail
+          ? `Friend request sent. They’ll see it under Incoming.`
+          : "Friend request sent.",
+      );
       setEmail("");
       bump();
     } finally {
@@ -141,11 +128,6 @@ export function FriendsClient() {
     await fetch(`/api/friends/${id}/cancel`, { method: "POST" });
     bump();
     if (selected?.id === id) setSelected(null);
-  }
-
-  async function cancelPendingInvite(inviteId: string) {
-    await fetch(`/api/friends/invites/${inviteId}`, { method: "DELETE" });
-    bump();
   }
 
   function openAssign(f: FriendshipDTO) {
@@ -210,8 +192,8 @@ export function FriendsClient() {
           Friends
         </h1>
         <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-          Enter their email: existing members get a friend request; new people
-          get a sign-up link first.
+          Look up members by the email they used to sign up for Nexus. Share
+          the app link yourself if they don’t have an account yet.
         </p>
       </header>
 
@@ -220,24 +202,28 @@ export function FriendsClient() {
         className="rounded-3xl border border-neutral-200/80 bg-white/80 p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/50"
       >
         <Label htmlFor="friend-email" className="text-xs uppercase tracking-wider text-neutral-500">
-          Add by email
+          Member sign-up email
         </Label>
-        <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end">
+        <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+          Same address they used when creating their Nexus account — like a user
+          ID for lookup.
+        </p>
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
           <Input
             id="friend-email"
             type="email"
-            placeholder="colleague@example.com"
+            placeholder="their-signup-email@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="sm:max-w-md"
-            autoComplete="email"
+            autoComplete="off"
           />
           <Button
             type="submit"
             disabled={loading || !email.trim()}
             className="rounded-2xl sm:w-auto"
           >
-            Send request
+            Send friend request
           </Button>
         </div>
         {formError ? (
@@ -311,42 +297,12 @@ export function FriendsClient() {
             <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
               Outgoing
             </h2>
-            {data.outgoing.length === 0 &&
-            (data.pendingInvites ?? []).length === 0 ? (
+            {data.outgoing.length === 0 ? (
               <p className="mt-3 rounded-2xl border border-dashed border-neutral-300/90 bg-white/40 px-5 py-10 text-center text-sm text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900/30">
                 Nothing waiting.
               </p>
             ) : (
               <ul className="mt-3 space-y-2">
-                {(data.pendingInvites ?? []).map((inv) => (
-                  <li
-                    key={inv.id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/80 bg-amber-50/50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/20"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-xs font-semibold text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
-                        {initials("", inv.email)}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-neutral-900 dark:text-neutral-50">
-                          {inv.email}
-                        </p>
-                        <p className="text-xs text-neutral-500">
-                          Awaiting signup (invite sent)
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="rounded-xl"
-                      onClick={() => void cancelPendingInvite(inv.id)}
-                    >
-                      Cancel
-                    </Button>
-                  </li>
-                ))}
                 {data.outgoing.map((f) => (
                   <li
                     key={f.id}
