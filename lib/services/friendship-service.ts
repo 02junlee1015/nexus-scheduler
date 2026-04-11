@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import * as notificationService from "@/lib/services/notification-service";
+import * as emailService from "@/lib/services/email-service";
 
 export type FriendshipDTO = {
   id: string;
@@ -78,6 +79,13 @@ export async function sendFriendRequest(
     relatedEntityId: row.id,
   });
 
+  await emailService.sendCollaborationEmail({
+    to: addressee.email,
+    subject: "[Nexus Scheduler] 친구 요청",
+    text: `${requester.name || requester.email}님이 Nexus Scheduler에서 친구 요청을 보냈습니다.`,
+    path: "/friends",
+  });
+
   return mapFriendship(row.id, requesterUserId);
 }
 
@@ -107,6 +115,17 @@ export async function acceptFriendship(
     message: `${addressee.name || addressee.email}님이 요청을 수락했습니다.`,
     relatedEntityType: "friendship",
     relatedEntityId: updated.id,
+  });
+
+  const requesterUser = await prisma.user.findUniqueOrThrow({
+    where: { id: row.requesterUserId },
+    select: { email: true },
+  });
+  await emailService.sendCollaborationEmail({
+    to: requesterUser.email,
+    subject: "[Nexus Scheduler] 친구 요청이 수락되었습니다",
+    text: `${addressee.name || addressee.email}님이 친구 요청을 수락했습니다.`,
+    path: "/friends",
   });
 
   return mapFriendship(updated.id, actingUserId);

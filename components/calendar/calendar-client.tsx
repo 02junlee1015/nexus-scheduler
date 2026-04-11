@@ -64,6 +64,8 @@ export function CalendarClient() {
         title: e.title,
         start: e.startDateTime,
         end: e.endDateTime,
+        classNames:
+          e.linkedTaskStatus === "done" ? ["fc-event-completed"] : undefined,
         extendedProps: {
           raw: e,
           workload: e.expectedWorkload,
@@ -221,6 +223,10 @@ export function CalendarClient() {
                 if (id) void openDetail(id);
               }}
               eventDidMount={(info) => {
+                const raw = info.event.extendedProps.raw as
+                  | CalendarEventDTO
+                  | undefined;
+                if (raw?.linkedTaskStatus === "done") return;
                 const w = (info.event.extendedProps.workload ?? 2) as WorkloadLevel;
                 const c = workloadVisual[w];
                 const el = info.el as HTMLElement;
@@ -322,6 +328,9 @@ export function CalendarClient() {
             {selected?.linkedTaskId ? (
               <p className="text-xs text-neutral-500">
                 Linked to to-do · changes sync both ways.
+                {selected.linkedTaskStatus === "done"
+                  ? " This task is completed (shown muted on the calendar)."
+                  : null}
               </p>
             ) : null}
             <div className="flex flex-wrap justify-end gap-2 pt-2">

@@ -26,6 +26,8 @@ export type CalendarEventDTO = {
   startDateTime: string;
   endDateTime: string;
   linkedTaskId: string | null;
+  /** When linked to a to-do, reflects task status (e.g. done → muted calendar block). */
+  linkedTaskStatus: TaskStatus | null;
   source: EventSource;
   createdAt: string;
   updatedAt: string;

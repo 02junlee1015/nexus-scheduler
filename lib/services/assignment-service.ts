@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { clampWorkload } from "@/lib/constants/workload";
 import * as notificationService from "@/lib/services/notification-service";
+import * as emailService from "@/lib/services/email-service";
 import * as friendshipService from "@/lib/services/friendship-service";
 import * as taskService from "@/lib/services/task-service";
 
@@ -114,6 +115,13 @@ export async function createAssignment(
     relatedEntityId: row.id,
   });
 
+  await emailService.sendCollaborationEmail({
+    to: recipient.email,
+    subject: `[Nexus Scheduler] 새 작업: ${row.title}`,
+    text: `${sender.name || sender.email}님이 작업을 보냈습니다.\n\n제목: ${row.title}`,
+    path: `/assignments/${row.id}`,
+  });
+
   return toDTO(row, sender, recipient);
 }
 
@@ -212,6 +220,13 @@ export async function acceptAssignment(
     relatedEntityId: updated.id,
   });
 
+  await emailService.sendCollaborationEmail({
+    to: sender.email,
+    subject: `[Nexus Scheduler] 작업 수락됨: ${row.title}`,
+    text: `${recipient.name || recipient.email}님이 "${row.title}" 작업을 수락했습니다.`,
+    path: `/assignments/${updated.id}`,
+  });
+
   return toDTO(updated, sender, recipient);
 }
 
@@ -252,6 +267,13 @@ export async function requestAdjustment(
     message: `${recipient.name || recipient.email}님이 "${row.title}" 조정을 요청했습니다.`,
     relatedEntityType: "assigned_task_request",
     relatedEntityId: updated.id,
+  });
+
+  await emailService.sendCollaborationEmail({
+    to: sender.email,
+    subject: `[Nexus Scheduler] 조정 요청: ${row.title}`,
+    text: `${recipient.name || recipient.email}님이 "${row.title}"에 대해 조정을 요청했습니다.\n\n메시지: ${input.message.trim()}`,
+    path: `/assignments/${updated.id}`,
   });
 
   return toDTO(updated, sender, recipient);
@@ -309,6 +331,13 @@ export async function reviseAssignment(
     relatedEntityId: updated.id,
   });
 
+  await emailService.sendCollaborationEmail({
+    to: recipient.email,
+    subject: `[Nexus Scheduler] 작업이 업데이트되었습니다: ${updated.title}`,
+    text: `${sender.name || sender.email}님이 "${updated.title}" 작업을 수정해 다시 보냈습니다.`,
+    path: `/assignments/${updated.id}`,
+  });
+
   return toDTO(updated, sender, recipient);
 }
 
@@ -354,5 +383,12 @@ export async function declineAssignment(
     message: `${recipient.name || recipient.email}님이 "${row.title}"을(를) 거절했습니다.`,
     relatedEntityType: "assigned_task_request",
     relatedEntityId: row.id,
+  });
+
+  await emailService.sendCollaborationEmail({
+    to: sender.email,
+    subject: `[Nexus Scheduler] 작업 거절: ${row.title}`,
+    text: `${recipient.name || recipient.email}님이 "${row.title}" 작업을 거절했습니다.`,
+    path: `/assignments/${row.id}`,
   });
 }

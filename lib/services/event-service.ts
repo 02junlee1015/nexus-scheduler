@@ -8,16 +8,20 @@ import {
 import { clampWorkload, defaultEventDurationHours } from "@/lib/constants/workload";
 import {
   attachMirrorTaskForEvent,
+  repairDoneTasksMissingCalendarBlocks,
   syncLinkedTaskFromEvent,
   syncTaskToCalendar,
 } from "@/lib/services/sync-service";
 import type {
   CalendarEventDTO,
   CreateEventInput,
+  TaskStatus,
   UpdateEventInput,
 } from "@/lib/types/api";
 
-function toDTO(e: {
+const eventTaskInclude = { task: { select: { status: true } } } as const;
+
+type EventRow = {
   id: string;
   title: string;
   detail: string;
@@ -28,7 +32,14 @@ function toDTO(e: {
   source: string;
   createdAt: Date;
   updatedAt: Date;
-}): CalendarEventDTO {
+  task?: { status: string } | null;
+};
+
+function toDTO(e: EventRow): CalendarEventDTO {
+  const linkedTaskStatus: TaskStatus | null =
+    e.linkedTaskId && e.task
+      ? (e.task.status as TaskStatus)
+      : null;
   return {
     id: e.id,
     title: e.title,
@@ -37,6 +48,7 @@ function toDTO(e: {
     startDateTime: e.startDateTime.toISOString(),
     endDateTime: e.endDateTime.toISOString(),
     linkedTaskId: e.linkedTaskId,
+    linkedTaskStatus,
     source: e.source as CalendarEventDTO["source"],
     createdAt: e.createdAt.toISOString(),
     updatedAt: e.updatedAt.toISOString(),
@@ -61,12 +73,17 @@ export async function listEvents(
     (range ? MAX_EVENTS_IN_RANGE : DEFAULT_LIST_LIMIT);
   const offset = pagination?.offset ?? 0;
 
+  if (range) {
+    await repairDoneTasksMissingCalendarBlocks(userId, range);
+  }
+
   const [rows, total] = await Promise.all([
     prisma.calendarEvent.findMany({
       where,
       orderBy: { startDateTime: "asc" },
       skip: offset,
       take: limit,
+      include: eventTaskInclude,
     }),
     prisma.calendarEvent.count({ where }),
   ]);
@@ -98,7 +115,10 @@ export async function importEvents(
 }
 
 export async function getEvent(id: string): Promise<CalendarEventDTO | null> {
-  const e = await prisma.calendarEvent.findUnique({ where: { id } });
+  const e = await prisma.calendarEvent.findUnique({
+    where: { id },
+    include: eventTaskInclude,
+  });
   return e ? toDTO(e) : null;
 }
 
@@ -106,7 +126,10 @@ export async function getEventForUser(
   id: string,
   userId: string,
 ): Promise<CalendarEventDTO | null> {
-  const e = await prisma.calendarEvent.findFirst({ where: { id, userId } });
+  const e = await prisma.calendarEvent.findFirst({
+    where: { id, userId },
+    include: eventTaskInclude,
+  });
   return e ? toDTO(e) : null;
 }
 
@@ -135,6 +158,7 @@ export async function createEvent(
     await attachMirrorTaskForEvent(created);
     created = await prisma.calendarEvent.findUniqueOrThrow({
       where: { id: created.id },
+      include: eventTaskInclude,
     });
     const task = await prisma.task.findUniqueOrThrow({
       where: { id: created.linkedTaskId! },
@@ -179,24 +203,31 @@ export async function updateEvent(input: UpdateEventInput): Promise<CalendarEven
   }
 
   if (Object.keys(data).length === 0) {
-    return toDTO(existing);
+    const withTask = await prisma.calendarEvent.findUniqueOrThrow({
+      where: { id },
+      include: eventTaskInclude,
+    });
+    return toDTO(withTask);
   }
 
-  let e = await prisma.calendarEvent.update({
+  const updated = await prisma.calendarEvent.update({
     where: { id },
     data,
   });
 
-  if (e.linkedTaskId) {
-    await syncLinkedTaskFromEvent(e);
+  if (updated.linkedTaskId) {
+    await syncLinkedTaskFromEvent(updated);
     const task = await prisma.task.findUniqueOrThrow({
-      where: { id: e.linkedTaskId },
+      where: { id: updated.linkedTaskId },
     });
     await syncTaskToCalendar(task);
-    e = await prisma.calendarEvent.findUniqueOrThrow({ where: { id } });
   }
 
-  return toDTO(e);
+  const out = await prisma.calendarEvent.findUniqueOrThrow({
+    where: { id },
+    include: eventTaskInclude,
+  });
+  return toDTO(out);
 }
 
 export async function updateEventForUser(
@@ -264,6 +295,7 @@ export async function queryEventsForAI(params: {
     where,
     orderBy: { startDateTime: "asc" },
     take: params.limit ?? 50,
+    include: eventTaskInclude,
   });
   return rows.map(toDTO);
 }

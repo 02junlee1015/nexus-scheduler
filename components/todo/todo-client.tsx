@@ -353,24 +353,28 @@ export function TodoClient() {
                     ) : null}
                   </div>
                 </div>
-                <div className="flex shrink-0 gap-1 sm:flex-col">
+                <div className="flex shrink-0 gap-1.5 sm:flex-col">
                   {t.status !== "done" ? (
                     <Button
-                      variant="ghost"
+                      type="button"
+                      variant="secondary"
                       size="icon"
                       title="완료 처리"
+                      aria-label="완료 처리"
                       onClick={() => markDone(t)}
+                      className="h-11 w-11 shrink-0 rounded-2xl border-2 border-emerald-500/70 bg-emerald-500 text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-400/30 hover:bg-emerald-600 hover:shadow-lg dark:border-emerald-400/80 dark:bg-emerald-600 dark:ring-emerald-500/20"
                     >
-                      <CheckCircle2 className="h-4 w-4" />
+                      <CheckCircle2 className="h-6 w-6" strokeWidth={2.25} />
                     </Button>
                   ) : (
                     <Button
                       variant="ghost"
                       size="icon"
                       title="다시 진행 중으로"
+                      className="h-11 w-11 rounded-2xl"
                       onClick={() => reopen(t)}
                     >
-                      <RotateCcw className="h-4 w-4" />
+                      <RotateCcw className="h-5 w-5" />
                     </Button>
                   )}
                   <Button

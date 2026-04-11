@@ -29,8 +29,8 @@ export async function syncTaskToCalendar(task: Task): Promise<void> {
     where: { linkedTaskId: task.id },
   });
 
-  const shouldHaveBlock =
-    task.dueDate != null && task.status !== "done" && task.status !== "Done";
+  // Keep the calendar block when the task is done — UI shows it muted; remove only if no due date.
+  const shouldHaveBlock = task.dueDate != null;
 
   if (!shouldHaveBlock) {
     if (existing) {
@@ -131,4 +131,31 @@ export async function syncTaskAndCalendar(taskId: string): Promise<void> {
   const task = await prisma.task.findUnique({ where: { id: taskId } });
   if (!task) return;
   await syncTaskToCalendar(task);
+}
+
+/**
+ * Older versions deleted calendar rows when a task was marked done. Recreate blocks for
+ * completed tasks that still have a due date but no linked event (visible range only).
+ */
+export async function repairDoneTasksMissingCalendarBlocks(
+  userId: string,
+  range: { start: Date; end: Date },
+): Promise<void> {
+  const candidates = await prisma.task.findMany({
+    where: {
+      userId,
+      status: "done",
+      dueDate: {
+        not: null,
+        gte: range.start,
+        lt: range.end,
+      },
+    },
+    include: { calendarEvent: true },
+  });
+  for (const t of candidates) {
+    if (t.calendarEvent === null) {
+      await syncTaskToCalendar(t);
+    }
+  }
 }

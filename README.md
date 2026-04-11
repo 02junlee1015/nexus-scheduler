@@ -52,7 +52,8 @@ Billing and quotas are your OpenAI (or provider) account — not included in thi
 ### Sync rules (high level)
 
 - **Task with `dueDate` and not `done`** → exactly one linked `CalendarEvent` (`linkedTaskId`). Title, detail, workload, and the **calendar day** stay aligned; when an event already exists, its **clock time** is preserved and only the date part follows the task deadline.
-- **Task loses `dueDate`, or becomes `done`** → linked calendar block is **removed**.
+- **Task becomes `done`** → linked block **stays** on the calendar with a **muted / struck-through** style (completed to-do).
+- **Task loses `dueDate`** → linked calendar block is **removed**.
 - **Standalone calendar event** → creates a **mirror task** (`source: calendar`) and links; edits on either side stay merged through `syncLinkedTaskFromEvent` + `syncTaskToCalendar`.
 - **Delete task** → cascade removes linked event (FK on `CalendarEvent.linkedTaskId`).
 - **Delete event** → task remains; **due date cleared** on the linked task so the list does not imply a phantom deadline.
@@ -82,6 +83,7 @@ Vercel serverless has **no persistent disk**, so **`file:./dev.db` SQLite will n
    - `DATABASE_URL` — Neon connection string
    - `OPENAI_API_KEY` — your `sk-...` key (same for everyone; visitors get the same AI features you do)
    - Optional: `OPENAI_MODEL`, `NEXT_PUBLIC_SITE_URL` (your custom domain, for metadata links)
+   - Optional: **`RESEND_API_KEY`** — real email for friend/assignment notifications ([Resend](https://resend.com)). Set **`EMAIL_FROM`** to an address on a domain you verify in Resend; **`APP_BASE_URL`** to your live site URL if `VERCEL_URL` is not enough.
 3. **Build** — Root **`vercel.json`** sets `buildCommand` to `npm run vercel-build` (`prisma migrate deploy` then `next build`). The first deploy applies migrations to the empty database.
 4. Open the production URL, **Register** two accounts, add each other by **email** on **Friends**.
 
