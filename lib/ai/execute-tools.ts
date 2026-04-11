@@ -222,10 +222,16 @@ export async function executeSchedulerTool(
         return { ok: true, result: items };
       }
       case "acceptAssignedTask": {
-        const a = z.object({ assignmentId: z.string() }).parse(rawArgs);
+        const a = z
+          .object({
+            assignmentId: z.string(),
+            expectedWorkload: z.number().int().min(1).max(3).optional(),
+          })
+          .parse(rawArgs);
         const row = await assignmentService.acceptAssignment(
           a.assignmentId,
           userId,
+          { expectedWorkload: a.expectedWorkload },
         );
         return { ok: true, result: row };
       }

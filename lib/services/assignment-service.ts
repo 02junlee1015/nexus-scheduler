@@ -175,6 +175,7 @@ export async function listAssignmentsForUser(
 export async function acceptAssignment(
   assignmentId: string,
   recipientUserId: string,
+  opts?: { expectedWorkload?: number },
 ): Promise<AssignedTaskRequestDTO> {
   const row = await prisma.assignedTaskRequest.findUnique({
     where: { id: assignmentId },
@@ -186,11 +187,16 @@ export async function acceptAssignment(
   if (row.linkedRecipientTaskId)
     throw new Error("ALREADY_ACCEPTED");
 
+  const workload =
+    opts?.expectedWorkload != null
+      ? clampWorkload(opts.expectedWorkload)
+      : row.expectedWorkload;
+
   const task = await taskService.createTask({
     userId: recipientUserId,
     title: row.title,
     detail: row.detail,
-    expectedWorkload: row.expectedWorkload,
+    expectedWorkload: workload,
     dueDate: row.deadline?.toISOString() ?? null,
     status: "todo",
     source: "assigned",

@@ -254,10 +254,14 @@ export const schedulerTools = [
     type: "function",
     function: {
       name: "acceptAssignedTask",
-      description: "Accept an assignment so it becomes your task with calendar sync.",
+      description:
+        "Accept an assignment so it becomes your task with calendar sync. Set expectedWorkload 1–3 for how heavy it feels on your side (defaults to sender suggestion).",
       parameters: {
         type: "object",
-        properties: { assignmentId: { type: "string" } },
+        properties: {
+          assignmentId: { type: "string" },
+          expectedWorkload: { type: "number", description: "1–3, optional" },
+        },
         required: ["assignmentId"],
       },
     },

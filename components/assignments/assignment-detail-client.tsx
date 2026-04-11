@@ -58,6 +58,8 @@ export function AssignmentDetailClient({ id }: { id: string }) {
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [adjMessage, setAdjMessage] = useState("");
   const [adjDeadline, setAdjDeadline] = useState("");
+  /** Workload on the recipient’s to-do / calendar when accepting (sender’s suggestion is the default). */
+  const [acceptWl, setAcceptWl] = useState<WorkloadLevel>(2);
 
   const [revTitle, setRevTitle] = useState("");
   const [revDetail, setRevDetail] = useState("");
@@ -86,6 +88,7 @@ export function AssignmentDetailClient({ id }: { id: string }) {
     setRevDetail(a.detail);
     setRevDeadline(isoToLocalInput(a.deadline));
     setRevWl(a.expectedWorkload as WorkloadLevel);
+    setAcceptWl(a.expectedWorkload as WorkloadLevel);
   }, [id]);
 
   useEffect(() => {
@@ -101,6 +104,8 @@ export function AssignmentDetailClient({ id }: { id: string }) {
     try {
       const r = await fetch(`/api/assigned-tasks/${row.id}/accept`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expectedWorkload: acceptWl }),
       });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
@@ -395,7 +400,29 @@ export function AssignmentDetailClient({ id }: { id: string }) {
         ) : null}
 
         {canRecipientRespond ? (
-          <div className="mt-10 flex flex-wrap gap-3">
+          <div className="mt-10 space-y-4">
+            <div className="max-w-xs">
+              <Label htmlFor="accept-wl">Your workload (to-do & calendar)</Label>
+              <p className="mt-1 text-xs text-neutral-500">
+                Sender suggested {row.expectedWorkload}; pick what fits you.
+                Due date stays what they set.
+              </p>
+              <select
+                id="accept-wl"
+                value={acceptWl}
+                onChange={(e) =>
+                  setAcceptWl(Number(e.target.value) as WorkloadLevel)
+                }
+                className="mt-2 flex h-10 w-full rounded-2xl border border-neutral-200/90 bg-white/80 px-4 text-sm dark:border-neutral-700 dark:bg-neutral-900/50"
+              >
+                {([1, 2, 3] as const).map((lvl) => (
+                  <option key={lvl} value={lvl}>
+                    {lvl}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-wrap gap-3">
             <Button
               type="button"
               className="rounded-2xl"
@@ -422,6 +449,7 @@ export function AssignmentDetailClient({ id }: { id: string }) {
             >
               Decline
             </Button>
+            </div>
           </div>
         ) : null}
 
