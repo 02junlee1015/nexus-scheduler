@@ -46,7 +46,12 @@ export async function sendCollaborationEmail(opts: {
   if (!to || !to.includes("@")) return;
 
   const resend = getResend();
-  if (!resend) return;
+  if (!resend) {
+    console.warn(
+      "[email] skipped: RESEND_API_KEY is missing or empty in this environment",
+    );
+    return;
+  }
 
   const base = getAppBaseUrl();
   const url = opts.path ? `${base}${opts.path.startsWith("/") ? opts.path : `/${opts.path}`}` : null;
