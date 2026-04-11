@@ -24,6 +24,7 @@ model User {
   calendarEvents   CalendarEvent[]
   friendshipsOut   Friendship[]            @relation("FriendRequester")
   friendshipsIn    Friendship[]            @relation("FriendAddressee")
+  friendInvitesOut FriendInvite[]          @relation("FriendInviter")
   assignmentsSent  AssignedTaskRequest[]   @relation("AssignmentSender")
   assignmentsRecv  AssignedTaskRequest[]   @relation("AssignmentRecipient")
   notifications    Notification[]
@@ -55,6 +56,21 @@ model Friendship {
   addressee User @relation("FriendAddressee", fields: [addresseeUserId], references: [id], onDelete: Cascade)
 
   @@unique([requesterUserId, addresseeUserId])
+}
+
+/// Email invite before the addressee has an account. On signup, a pending Friendship is created.
+model FriendInvite {
+  id            String   @id @default(cuid())
+  token         String   @unique
+  inviterUserId String
+  inviteeEmail  String
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime
+
+  inviter User @relation("FriendInviter", fields: [inviterUserId], references: [id], onDelete: Cascade)
+
+  @@unique([inviterUserId, inviteeEmail])
+  @@index([inviteeEmail])
 }
 
 /// Collaborative task handoff — separate from personal Task until accepted.

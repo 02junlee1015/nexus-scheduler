@@ -184,7 +184,8 @@ export const schedulerTools = [
     type: "function",
     function: {
       name: "sendFriendRequest",
-      description: "Send a friend request to a user by email.",
+      description:
+        "Send a friend request by email. If they already have an account, they get an in-app request. If not, they receive an invite email with a sign-up link; after they register with that address, your friend request appears for them.",
       parameters: {
         type: "object",
         properties: { email: { type: "string" } },

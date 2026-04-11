@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import FullCalendar from "@fullcalendar/react";
+import luxonPlugin from "@fullcalendar/luxon3";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import listPlugin from "@fullcalendar/list";
@@ -10,6 +11,7 @@ import type { EventInput } from "@fullcalendar/core";
 import { useAppStore } from "@/lib/store/app-store";
 import type { CalendarEventDTO } from "@/lib/types/api";
 import { workloadVisual, type WorkloadLevel } from "@/lib/constants/workload";
+import { APP_TIME_ZONE } from "@/lib/constants/timezone";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -197,11 +199,13 @@ export function CalendarClient() {
             <FullCalendar
               ref={calRef}
               plugins={[
+                luxonPlugin,
                 dayGridPlugin,
                 timeGridPlugin,
                 listPlugin,
                 interactionPlugin,
               ]}
+              timeZone={APP_TIME_ZONE}
               initialView="dayGridMonth"
               headerToolbar={{
                 left: "prev,next today",

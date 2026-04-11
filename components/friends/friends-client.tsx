@@ -26,10 +26,18 @@ type FriendshipDTO = {
   peer: { id: string; email: string; name: string };
 };
 
+type PendingInviteDTO = {
+  id: string;
+  email: string;
+  createdAt: string;
+  expiresAt: string;
+};
+
 type FriendsPayload = {
   incoming: FriendshipDTO[];
   outgoing: FriendshipDTO[];
   accepted: FriendshipDTO[];
+  pendingInvites: PendingInviteDTO[];
 };
 
 function initials(name: string, email: string) {
@@ -52,6 +60,7 @@ export function FriendsClient() {
   const [data, setData] = useState<FriendsPayload | null>(null);
   const [email, setEmail] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<FriendshipDTO | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
@@ -66,7 +75,10 @@ export function FriendsClient() {
     const r = await fetch("/api/friends");
     if (!r.ok) return;
     const j = (await r.json()) as FriendsPayload;
-    setData(j);
+    setData({
+      ...j,
+      pendingInvites: j.pendingInvites ?? [],
+    });
   }, []);
 
   useEffect(() => {
@@ -76,6 +88,7 @@ export function FriendsClient() {
   async function sendRequest(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
+    setFormSuccess(null);
     setLoading(true);
     try {
       const r = await fetch("/api/friends", {
@@ -89,6 +102,21 @@ export function FriendsClient() {
           typeof j.error === "string" ? j.error : "Could not send request",
         );
         return;
+      }
+      if (
+        j &&
+        typeof j === "object" &&
+        "kind" in j &&
+        (j as { kind?: string }).kind === "invite_sent"
+      ) {
+        const inv = j as { email?: string; resent?: boolean };
+        setFormSuccess(
+          inv.resent
+            ? `Invite resent to ${inv.email ?? "that address"} with a fresh link.`
+            : `Invite sent to ${inv.email ?? "that address"}. They can sign up from the email; you’ll see a pending invite here until they join.`,
+        );
+      } else {
+        setFormSuccess("Friend request sent.");
       }
       setEmail("");
       bump();
@@ -113,6 +141,11 @@ export function FriendsClient() {
     await fetch(`/api/friends/${id}/cancel`, { method: "POST" });
     bump();
     if (selected?.id === id) setSelected(null);
+  }
+
+  async function cancelPendingInvite(inviteId: string) {
+    await fetch(`/api/friends/invites/${inviteId}`, { method: "DELETE" });
+    bump();
   }
 
   function openAssign(f: FriendshipDTO) {
@@ -177,7 +210,8 @@ export function FriendsClient() {
           Friends
         </h1>
         <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-          Invite by email, then assign tasks once you are connected.
+          Enter their email: existing members get a friend request; new people
+          get a sign-up link first.
         </p>
       </header>
 
@@ -209,6 +243,11 @@ export function FriendsClient() {
         {formError ? (
           <p className="mt-2 text-sm text-red-600 dark:text-red-400">
             {formError}
+          </p>
+        ) : null}
+        {formSuccess ? (
+          <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-400">
+            {formSuccess}
           </p>
         ) : null}
       </form>
@@ -272,12 +311,42 @@ export function FriendsClient() {
             <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
               Outgoing
             </h2>
-            {data.outgoing.length === 0 ? (
+            {data.outgoing.length === 0 &&
+            (data.pendingInvites ?? []).length === 0 ? (
               <p className="mt-3 rounded-2xl border border-dashed border-neutral-300/90 bg-white/40 px-5 py-10 text-center text-sm text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900/30">
                 Nothing waiting.
               </p>
             ) : (
               <ul className="mt-3 space-y-2">
+                {(data.pendingInvites ?? []).map((inv) => (
+                  <li
+                    key={inv.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/80 bg-amber-50/50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/20"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-xs font-semibold text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
+                        {initials("", inv.email)}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-neutral-900 dark:text-neutral-50">
+                          {inv.email}
+                        </p>
+                        <p className="text-xs text-neutral-500">
+                          Awaiting signup (invite sent)
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="rounded-xl"
+                      onClick={() => void cancelPendingInvite(inv.id)}
+                    >
+                      Cancel
+                    </Button>
+                  </li>
+                ))}
                 {data.outgoing.map((f) => (
                   <li
                     key={f.id}

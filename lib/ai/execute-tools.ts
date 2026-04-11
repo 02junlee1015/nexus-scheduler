@@ -146,8 +146,20 @@ export async function executeSchedulerTool(
       }
       case "sendFriendRequest": {
         const a = z.object({ email: z.string() }).parse(rawArgs);
-        const row = await friendshipService.sendFriendRequest(userId, a.email);
-        return { ok: true, result: row };
+        const result = await friendshipService.sendFriendRequest(userId, a.email);
+        if (result.kind === "invite_sent") {
+          return {
+            ok: true,
+            result: {
+              invitedEmail: result.email,
+              resent: result.resent,
+              message: result.resent
+                ? "Invite email sent again with a fresh link."
+                : "That email is not registered yet. An invite was sent; after they sign up with that address, your friend request will appear for them.",
+            },
+          };
+        }
+        return { ok: true, result: result.data };
       }
       case "acceptFriendRequest": {
         const a = z.object({ friendshipId: z.string() }).parse(rawArgs);

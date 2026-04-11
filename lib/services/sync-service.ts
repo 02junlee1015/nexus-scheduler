@@ -1,27 +1,50 @@
 import { addHours } from "date-fns";
+import { fromZonedTime } from "date-fns-tz";
 import type { Task, CalendarEvent } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { APP_TIME_ZONE } from "@/lib/constants/timezone";
 import {
   clampWorkload,
   defaultEventDurationHours,
   type WorkloadLevel,
 } from "@/lib/constants/workload";
 
-/** New calendar block from task-only deadline: anchor at 09:00 UTC on that calendar day */
-function defaultStartForDueDate(due: Date): Date {
-  const d = new Date(due);
-  return new Date(
-    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 9, 0, 0, 0),
-  );
+const TZ = APP_TIME_ZONE;
+
+const seoulDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: TZ,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+const seoulTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: TZ,
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+
+/** YYYY-MM-DD of this instant in Seoul */
+function seoulDateString(d: Date): string {
+  return seoulDateFormatter.format(d);
 }
 
-/** Apply task's due calendar day to an existing event while preserving its clock time (UTC components) */
+/** New calendar block from task deadline: same calendar day in Korea, default 09:00 KST */
+function defaultStartForDueDate(due: Date): Date {
+  const day = seoulDateString(due);
+  return fromZonedTime(`${day}T09:00:00`, TZ);
+}
+
+/** Keep event clock time in Seoul, move to the Seoul calendar day of `due` */
 function mergeDueDateIntoEventStart(due: Date, previousStart: Date): Date {
-  const next = new Date(previousStart);
-  next.setUTCFullYear(due.getUTCFullYear());
-  next.setUTCMonth(due.getUTCMonth());
-  next.setUTCDate(due.getUTCDate());
-  return next;
+  const day = seoulDateString(due);
+  const timeParts = seoulTimeFormatter.formatToParts(previousStart);
+  const h = timeParts.find((p) => p.type === "hour")?.value ?? "09";
+  const min = timeParts.find((p) => p.type === "minute")?.value ?? "00";
+  const s = timeParts.find((p) => p.type === "second")?.value ?? "00";
+  return fromZonedTime(`${day}T${h}:${min}:${s}`, TZ);
 }
 
 export async function syncTaskToCalendar(task: Task): Promise<void> {
@@ -83,17 +106,15 @@ export async function attachMirrorTaskForEvent(
     return prisma.task.findUniqueOrThrow({ where: { id: event.linkedTaskId } });
   }
 
-  const d = new Date(event.startDateTime);
-  const dueDayUtc = new Date(
-    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
-  );
+  const day = seoulDateString(new Date(event.startDateTime));
+  const dueDayKstMidnight = fromZonedTime(`${day}T00:00:00`, TZ);
   const task = await prisma.task.create({
     data: {
       userId: event.userId,
       title: event.title,
       detail: event.detail,
       expectedWorkload: clampWorkload(event.expectedWorkload),
-      dueDate: dueDayUtc,
+      dueDate: dueDayKstMidnight,
       status: "todo",
       source: "calendar",
     },
@@ -112,17 +133,15 @@ export async function syncLinkedTaskFromEvent(
 ): Promise<void> {
   if (!event.linkedTaskId) return;
 
-  const d = new Date(event.startDateTime);
-  const dueDayUtc = new Date(
-    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
-  );
+  const day = seoulDateString(new Date(event.startDateTime));
+  const dueDayKstMidnight = fromZonedTime(`${day}T00:00:00`, TZ);
   await prisma.task.update({
     where: { id: event.linkedTaskId },
     data: {
       title: event.title,
       detail: event.detail,
       expectedWorkload: clampWorkload(event.expectedWorkload),
-      dueDate: dueDayUtc,
+      dueDate: dueDayKstMidnight,
     },
   });
 }
