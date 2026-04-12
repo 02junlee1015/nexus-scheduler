@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { useAppStore } from "@/lib/store/app-store";
 import { cn } from "@/lib/utils/cn";
-import { workloadVisual, type WorkloadLevel } from "@/lib/constants/workload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -82,7 +81,6 @@ export function AssignmentsClient() {
   const [asgTitle, setAsgTitle] = useState("");
   const [asgDetail, setAsgDetail] = useState("");
   const [asgDeadline, setAsgDeadline] = useState("");
-  const [asgWl, setAsgWl] = useState<WorkloadLevel>(2);
   const [asgBusy, setAsgBusy] = useState(false);
   const [asgErr, setAsgErr] = useState<string | null>(null);
 
@@ -159,7 +157,6 @@ export function AssignmentsClient() {
         recipientUserId,
         title,
         detail: asgDetail.trim(),
-        expectedWorkload: asgWl,
       };
       if (asgDeadline.trim()) {
         body.deadline = new Date(asgDeadline).toISOString();
@@ -185,7 +182,6 @@ export function AssignmentsClient() {
       setAsgTitle("");
       setAsgDetail("");
       setAsgDeadline("");
-      setAsgWl(2);
       router.push("/tasks?tab=sent");
       router.refresh();
     } finally {
@@ -297,23 +293,10 @@ export function AssignmentsClient() {
                   className="mt-1.5 rounded-2xl"
                 />
               </div>
-              <div>
-                <Label htmlFor="assign-wl">Suggested workload</Label>
-                <select
-                  id="assign-wl"
-                  value={asgWl}
-                  onChange={(e) =>
-                    setAsgWl(Number(e.target.value) as WorkloadLevel)
-                  }
-                  className="mt-1.5 flex h-10 w-full rounded-2xl border border-neutral-200/90 bg-white/80 px-4 text-sm dark:border-neutral-700 dark:bg-neutral-900/50"
-                >
-                  {([1, 2, 3] as const).map((lvl) => (
-                    <option key={lvl} value={lvl}>
-                      {lvl} — {workloadVisual[lvl].label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <p className="text-xs text-neutral-500">
+                Workload is chosen by them when they accept (calendar block
+                weight).
+              </p>
               {asgErr ? (
                 <p className="text-sm text-red-600 dark:text-red-400">
                   {asgErr}

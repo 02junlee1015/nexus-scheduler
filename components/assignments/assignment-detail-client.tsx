@@ -58,13 +58,12 @@ export function AssignmentDetailClient({ id }: { id: string }) {
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [adjMessage, setAdjMessage] = useState("");
   const [adjDeadline, setAdjDeadline] = useState("");
-  /** Workload on the recipient’s to-do / calendar when accepting (sender’s suggestion is the default). */
+  /** Workload on the recipient’s to-do / calendar — only they set this when accepting. */
   const [acceptWl, setAcceptWl] = useState<WorkloadLevel>(2);
 
   const [revTitle, setRevTitle] = useState("");
   const [revDetail, setRevDetail] = useState("");
   const [revDeadline, setRevDeadline] = useState("");
-  const [revWl, setRevWl] = useState<WorkloadLevel>(2);
 
   const load = useCallback(async () => {
     setErr(null);
@@ -87,8 +86,7 @@ export function AssignmentDetailClient({ id }: { id: string }) {
     setRevTitle(a.title);
     setRevDetail(a.detail);
     setRevDeadline(isoToLocalInput(a.deadline));
-    setRevWl(a.expectedWorkload as WorkloadLevel);
-    setAcceptWl(a.expectedWorkload as WorkloadLevel);
+    setAcceptWl(2);
   }, [id]);
 
   useEffect(() => {
@@ -191,7 +189,6 @@ export function AssignmentDetailClient({ id }: { id: string }) {
       const body: Record<string, unknown> = {
         title: revTitle.trim(),
         detail: revDetail.trim(),
-        expectedWorkload: revWl,
       };
       if (revDeadline.trim()) {
         body.deadline = new Date(revDeadline).toISOString();
@@ -276,11 +273,22 @@ export function AssignmentDetailClient({ id }: { id: string }) {
           >
             {row.status.replace(/_/g, " ")}
           </span>
-          <span>
-            Workload {row.expectedWorkload} —{" "}
-            {workloadVisual[row.expectedWorkload as WorkloadLevel]?.label ??
-              row.expectedWorkload}
-          </span>
+          {row.status === "accepted" ? (
+            <span>
+              Workload {row.expectedWorkload} —{" "}
+              {workloadVisual[row.expectedWorkload as WorkloadLevel]?.label ??
+                row.expectedWorkload}{" "}
+              <span className="text-neutral-400">(set by recipient)</span>
+            </span>
+          ) : ["pending", "updated_resubmitted", "adjustment_requested"].includes(
+              row.status,
+            ) ? (
+            isRecipient ? (
+              <span>You choose workload when you accept.</span>
+            ) : (
+              <span>They choose workload when they accept.</span>
+            )
+          ) : null}
           {row.deadline ? (
             <span>
               Due {format(new Date(row.deadline), "MMM d, yyyy HH:mm")}
@@ -360,23 +368,6 @@ export function AssignmentDetailClient({ id }: { id: string }) {
                   className="mt-1.5"
                 />
               </div>
-              <div>
-                <Label htmlFor="rev-wl">Workload</Label>
-                <select
-                  id="rev-wl"
-                  value={revWl}
-                  onChange={(e) =>
-                    setRevWl(Number(e.target.value) as WorkloadLevel)
-                  }
-                  className="mt-1.5 flex h-10 w-full rounded-2xl border border-neutral-200/90 bg-white/80 px-4 text-sm dark:border-neutral-700 dark:bg-neutral-900/50"
-                >
-                  {([1, 2, 3] as const).map((lvl) => (
-                    <option key={lvl} value={lvl}>
-                      {lvl}
-                    </option>
-                  ))}
-                </select>
-              </div>
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="submit"
@@ -404,8 +395,8 @@ export function AssignmentDetailClient({ id }: { id: string }) {
             <div className="max-w-xs">
               <Label htmlFor="accept-wl">Your workload (to-do & calendar)</Label>
               <p className="mt-1 text-xs text-neutral-500">
-                Pick what fits you — it sets block length on your calendar.
-                Due date is what they set unless you requested a change.
+                Only you set this — it controls how heavy the block feels on your
+                calendar. The sender does not pick it.
               </p>
               <select
                 id="accept-wl"
@@ -417,7 +408,7 @@ export function AssignmentDetailClient({ id }: { id: string }) {
               >
                 {([1, 2, 3] as const).map((lvl) => (
                   <option key={lvl} value={lvl}>
-                    {lvl}
+                    {lvl} — {workloadVisual[lvl].label}
                   </option>
                 ))}
               </select>

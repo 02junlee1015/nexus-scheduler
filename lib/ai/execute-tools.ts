@@ -223,7 +223,7 @@ export async function executeSchedulerTool(
         const a = z
           .object({
             assignmentId: z.string(),
-            expectedWorkload: z.number().int().min(1).max(3).optional(),
+            expectedWorkload: z.number().int().min(1).max(3),
           })
           .parse(rawArgs);
         const row = await assignmentService.acceptAssignment(
@@ -258,7 +258,6 @@ export async function executeSchedulerTool(
             title: z.string(),
             detail: z.string().optional(),
             deadline: z.string().nullable().optional(),
-            expectedWorkload: z.number().int().min(1).max(3).optional(),
           })
           .parse(rawArgs);
         const row = await assignmentService.reviseAssignment(
@@ -268,7 +267,6 @@ export async function executeSchedulerTool(
             title: a.title,
             detail: a.detail,
             deadline: a.deadline,
-            expectedWorkload: a.expectedWorkload,
           },
         );
         return { ok: true, result: row };

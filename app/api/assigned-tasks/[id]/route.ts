@@ -18,7 +18,6 @@ const reviseSchema = z.object({
   title: z.string().min(1).max(500),
   detail: z.string().max(8000).optional(),
   deadline: z.union([z.string(), z.null()]).optional(),
-  expectedWorkload: z.coerce.number().int().min(1).max(3).optional(),
 });
 
 export async function PATCH(req: Request, ctx: Ctx) {
@@ -38,7 +37,6 @@ export async function PATCH(req: Request, ctx: Ctx) {
       title: parsed.data.title,
       detail: parsed.data.detail,
       deadline: parsed.data.deadline,
-      expectedWorkload: parsed.data.expectedWorkload,
     });
     return NextResponse.json(row);
   } catch (e) {

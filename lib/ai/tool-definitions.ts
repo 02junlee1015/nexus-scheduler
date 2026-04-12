@@ -254,14 +254,14 @@ export const schedulerTools = [
     function: {
       name: "acceptAssignedTask",
       description:
-        "Accept an assignment so it becomes your task with calendar sync. Set expectedWorkload 1–3 for how heavy it feels on your side (defaults to sender suggestion).",
+        "Accept an assignment so it becomes your task with calendar sync. You must set expectedWorkload 1–3 for how heavy it feels on your calendar (only the recipient chooses this).",
       parameters: {
         type: "object",
         properties: {
           assignmentId: { type: "string" },
-          expectedWorkload: { type: "number", description: "1–3, optional" },
+          expectedWorkload: { type: "number", description: "1–3, required" },
         },
-        required: ["assignmentId"],
+        required: ["assignmentId", "expectedWorkload"],
       },
     },
   },
@@ -286,7 +286,7 @@ export const schedulerTools = [
     function: {
       name: "reviseAssignedTask",
       description:
-        "Sender updates an assignment after recipient requested adjustment.",
+        "Sender updates an assignment after recipient requested adjustment. Do not set workload — the recipient still chooses that when they accept.",
       parameters: {
         type: "object",
         properties: {
@@ -294,7 +294,6 @@ export const schedulerTools = [
           title: { type: "string" },
           detail: { type: "string" },
           deadline: { type: "string" },
-          expectedWorkload: { type: "integer", enum: [1, 2, 3] },
         },
         required: ["assignmentId", "title"],
       },

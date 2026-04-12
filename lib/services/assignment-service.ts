@@ -175,7 +175,7 @@ export async function listAssignmentsForUser(
 export async function acceptAssignment(
   assignmentId: string,
   recipientUserId: string,
-  opts?: { expectedWorkload?: number },
+  opts: { expectedWorkload: number },
 ): Promise<AssignedTaskRequestDTO> {
   const row = await prisma.assignedTaskRequest.findUnique({
     where: { id: assignmentId },
@@ -187,10 +187,7 @@ export async function acceptAssignment(
   if (row.linkedRecipientTaskId)
     throw new Error("ALREADY_ACCEPTED");
 
-  const workload =
-    opts?.expectedWorkload != null
-      ? clampWorkload(opts.expectedWorkload)
-      : row.expectedWorkload;
+  const workload = clampWorkload(opts.expectedWorkload);
 
   const task = await taskService.createTask({
     userId: recipientUserId,
@@ -207,6 +204,7 @@ export async function acceptAssignment(
     data: {
       status: "accepted",
       linkedRecipientTaskId: task.id,
+      expectedWorkload: workload,
       recipientResponseMessage: "",
       proposedDeadline: null,
     },
@@ -292,7 +290,6 @@ export async function reviseAssignment(
     title: string;
     detail?: string;
     deadline?: string | null;
-    expectedWorkload?: number;
   },
 ): Promise<AssignedTaskRequestDTO> {
   const row = await prisma.assignedTaskRequest.findUnique({
@@ -313,10 +310,6 @@ export async function reviseAssignment(
             ? null
             : new Date(input.deadline)
           : row.deadline,
-      expectedWorkload:
-        input.expectedWorkload != null
-          ? clampWorkload(input.expectedWorkload)
-          : row.expectedWorkload,
       status: "updated_resubmitted",
       recipientResponseMessage: "",
       proposedDeadline: null,

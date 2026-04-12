@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/api/auth-utils";
 type Ctx = { params: Promise<{ id: string }> };
 
 const bodySchema = z.object({
-  expectedWorkload: z.number().int().min(1).max(3).optional(),
+  expectedWorkload: z.number().int().min(1).max(3),
 });
 
 export async function POST(req: Request, ctx: Ctx) {
