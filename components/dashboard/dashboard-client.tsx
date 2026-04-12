@@ -172,7 +172,7 @@ export function DashboardClient() {
           <span className="text-neutral-500">Collaboration</span>
           {data.collaboration.assignmentInbox > 0 ? (
             <Link
-              href="/assignments?tab=inbox"
+              href="/tasks?tab=inbox"
               className="rounded-full bg-neutral-900 px-3 py-1 text-xs font-medium text-white dark:bg-neutral-100 dark:text-neutral-900"
             >
               {data.collaboration.assignmentInbox} to review
@@ -180,7 +180,7 @@ export function DashboardClient() {
           ) : null}
           {data.collaboration.assignmentNeedsRevision > 0 ? (
             <Link
-              href="/assignments?tab=sent"
+              href="/tasks?tab=sent"
               className="rounded-full border border-amber-200/80 bg-amber-50/80 px-3 py-1 text-xs font-medium text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
             >
               {data.collaboration.assignmentNeedsRevision} need revision

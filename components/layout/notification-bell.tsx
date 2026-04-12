@@ -66,7 +66,7 @@ export function NotificationBell() {
       n.relatedEntityType === "assigned_task_request" &&
       n.relatedEntityId
     ) {
-      return `/assignments/${n.relatedEntityId}`;
+      return `/tasks/${n.relatedEntityId}`;
     }
     if (n.relatedEntityType === "friendship" && n.relatedEntityId) {
       return "/friends";

@@ -112,7 +112,7 @@ export function AssignmentsClient() {
     <div className="mx-auto max-w-3xl space-y-8">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-          Assignments
+          Tasks
         </h1>
         <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
           Tasks shared between you and friends — respond or follow up here.
@@ -125,8 +125,8 @@ export function AssignmentsClient() {
             key={t.id}
             href={
               t.id === "inbox"
-                ? "/assignments?tab=inbox"
-                : `/assignments?tab=${t.id}`
+                ? "/tasks?tab=inbox"
+                : `/tasks?tab=${t.id}`
             }
             className={cn(
               "rounded-full px-4 py-2 text-sm font-medium transition",
@@ -154,8 +154,8 @@ export function AssignmentsClient() {
           {tab === "inbox"
             ? "Nothing needs your attention."
             : tab === "sent"
-              ? "You have not sent any assignments yet."
-              : "No assignments yet."}
+              ? "You have not sent any tasks yet."
+              : "No shared tasks yet."}
         </div>
       ) : (
         <ul className="space-y-2">
@@ -176,7 +176,7 @@ export function AssignmentsClient() {
             return (
               <li key={a.id}>
                 <Link
-                  href={`/assignments/${a.id}`}
+                  href={`/tasks/${a.id}`}
                   className="group flex items-center justify-between gap-3 rounded-2xl border border-neutral-200/80 bg-white/90 px-4 py-3.5 transition hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900/60 dark:hover:border-neutral-600"
                 >
                   <div className="min-w-0 flex-1">

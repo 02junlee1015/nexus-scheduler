@@ -121,7 +121,7 @@ export function AssignmentDetailClient({ id }: { id: string }) {
   }
 
   async function decline() {
-    if (!row || !confirm("Decline this assignment?")) return;
+    if (!row || !confirm("Decline this task?")) return;
     setBusy(true);
     try {
       const r = await fetch(`/api/assigned-tasks/${row.id}/decline`, {
@@ -129,14 +129,14 @@ export function AssignmentDetailClient({ id }: { id: string }) {
       });
       if (!r.ok) return;
       bump();
-      router.push("/assignments?tab=inbox");
+      router.push("/tasks?tab=inbox");
     } finally {
       setBusy(false);
     }
   }
 
   async function cancel() {
-    if (!row || !confirm("Cancel this assignment?")) return;
+    if (!row || !confirm("Cancel this task?")) return;
     setBusy(true);
     try {
       const r = await fetch(`/api/assigned-tasks/${row.id}/cancel`, {
@@ -144,7 +144,7 @@ export function AssignmentDetailClient({ id }: { id: string }) {
       });
       if (!r.ok) return;
       bump();
-      router.push("/assignments?tab=sent");
+      router.push("/tasks?tab=sent");
     } finally {
       setBusy(false);
     }
@@ -219,7 +219,7 @@ export function AssignmentDetailClient({ id }: { id: string }) {
     return (
       <div className="mx-auto max-w-2xl space-y-4">
         <Button variant="ghost" size="sm" asChild className="rounded-xl -ml-2">
-          <Link href="/assignments" className="gap-1">
+          <Link href="/tasks" className="gap-1">
             <ArrowLeft className="h-4 w-4" />
             Back
           </Link>
@@ -247,9 +247,9 @@ export function AssignmentDetailClient({ id }: { id: string }) {
   return (
     <div className="mx-auto max-w-2xl space-y-8">
       <Button variant="ghost" size="sm" asChild className="rounded-xl -ml-2">
-        <Link href="/assignments" className="gap-1">
+        <Link href="/tasks" className="gap-1">
           <ArrowLeft className="h-4 w-4" />
-          Assignments
+          Tasks
         </Link>
       </Button>
 
@@ -259,7 +259,7 @@ export function AssignmentDetailClient({ id }: { id: string }) {
             ? `From ${row.sender.name || row.sender.email}`
             : isSender
               ? `To ${row.recipient.name || row.recipient.email}`
-              : "Assignment"}
+              : "Shared task"}
         </p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
           {row.title}
@@ -392,7 +392,7 @@ export function AssignmentDetailClient({ id }: { id: string }) {
                   className="rounded-2xl"
                   onClick={() => void cancel()}
                 >
-                  Cancel assignment
+                  Cancel task
                 </Button>
               </div>
             </form>
@@ -463,7 +463,7 @@ export function AssignmentDetailClient({ id }: { id: string }) {
               disabled={busy}
               onClick={() => void cancel()}
             >
-              Cancel assignment
+              Cancel task
             </Button>
           </div>
         ) : null}

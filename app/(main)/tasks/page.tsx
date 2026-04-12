@@ -18,7 +18,7 @@ function Fallback() {
   );
 }
 
-export default function AssignmentsPage() {
+export default function TasksPage() {
   return (
     <Suspense fallback={<Fallback />}>
       <AssignmentsClient />

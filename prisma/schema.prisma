@@ -28,6 +28,8 @@ model User {
   assignmentsSent  AssignedTaskRequest[]   @relation("AssignmentSender")
   assignmentsRecv  AssignedTaskRequest[]   @relation("AssignmentRecipient")
   notifications    Notification[]
+  teamsOwned       Team[]                  @relation("TeamOwner")
+  teamMemberships  TeamMember[]
 }
 
 model Session {
@@ -155,4 +157,31 @@ model CalendarEvent {
 
   @@index([userId])
   @@index([startDateTime])
+}
+
+/// Named group of users (from accepted friends). Creator is owner and a member.
+model Team {
+  id          String   @id @default(cuid())
+  name        String
+  ownerUserId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner   User         @relation("TeamOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  members TeamMember[]
+
+  @@index([ownerUserId])
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId])
 }

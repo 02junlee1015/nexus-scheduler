@@ -1,17 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAppStore } from "@/lib/store/app-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils/cn";
 import { UserRound } from "lucide-react";
 
@@ -47,6 +42,7 @@ function peerLabel(f: FriendshipDTO) {
 }
 
 export function FriendsClient() {
+  const router = useRouter();
   const bump = useAppStore((s) => s.bumpDataEpoch);
   const dataEpoch = useAppStore((s) => s.dataEpoch);
   const [data, setData] = useState<FriendsPayload | null>(null);
@@ -54,13 +50,11 @@ export function FriendsClient() {
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [selected, setSelected] = useState<FriendshipDTO | null>(null);
-  const [assignOpen, setAssignOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [detail, setDetail] = useState("");
-  const [deadline, setDeadline] = useState("");
-  const [assignError, setAssignError] = useState<string | null>(null);
-  const [assignLoading, setAssignLoading] = useState(false);
+
+  const [teamName, setTeamName] = useState("");
+  const [teamPick, setTeamPick] = useState<Set<string>>(() => new Set());
+  const [teamError, setTeamError] = useState<string | null>(null);
+  const [teamBusy, setTeamBusy] = useState(false);
 
   const load = useCallback(async () => {
     const r = await fetch("/api/friends");
@@ -75,6 +69,15 @@ export function FriendsClient() {
   useEffect(() => {
     void load();
   }, [load, dataEpoch]);
+
+  function toggleTeamMember(peerUserId: string) {
+    setTeamPick((prev) => {
+      const n = new Set(prev);
+      if (n.has(peerUserId)) n.delete(peerUserId);
+      else n.add(peerUserId);
+      return n;
+    });
+  }
 
   async function sendRequest(e: React.FormEvent) {
     e.preventDefault();
@@ -113,62 +116,65 @@ export function FriendsClient() {
   async function accept(id: string) {
     await fetch(`/api/friends/${id}/accept`, { method: "POST" });
     bump();
-    if (selected?.id === id) setSelected(null);
   }
 
   async function reject(id: string) {
     await fetch(`/api/friends/${id}/reject`, { method: "POST" });
     bump();
-    if (selected?.id === id) setSelected(null);
   }
 
   async function cancelOutgoing(id: string) {
     await fetch(`/api/friends/${id}/cancel`, { method: "POST" });
     bump();
-    if (selected?.id === id) setSelected(null);
   }
 
-  function openAssign(f: FriendshipDTO) {
-    setSelected(f);
-    setTitle("");
-    setDetail("");
-    setDeadline("");
-    setAssignError(null);
-    setAssignOpen(true);
+  async function removeAcceptedFriend(f: FriendshipDTO) {
+    if (!confirm(`Remove ${peerLabel(f)} from your friends?`)) return;
+    const r = await fetch(`/api/friends/${f.id}`, { method: "DELETE" });
+    if (!r.ok) return;
+    setTeamPick((prev) => {
+      const n = new Set(prev);
+      n.delete(f.peer.id);
+      return n;
+    });
+    bump();
   }
 
-  async function submitAssign(e: React.FormEvent) {
+  async function submitCreateTeam(e: React.FormEvent) {
     e.preventDefault();
-    if (!selected) return;
-    setAssignError(null);
-    setAssignLoading(true);
+    setTeamError(null);
+    const name = teamName.trim();
+    if (!name) {
+      setTeamError("Name your team.");
+      return;
+    }
+    if (teamPick.size === 0) {
+      setTeamError("Select at least one friend to add to the team.");
+      return;
+    }
+    setTeamBusy(true);
     try {
-      const body: Record<string, unknown> = {
-        recipientUserId: selected.peer.id,
-        title: title.trim(),
-        detail: detail.trim() || undefined,
-      };
-      if (deadline.trim()) {
-        body.deadline = new Date(deadline).toISOString();
-      } else {
-        body.deadline = null;
-      }
-      const r = await fetch("/api/assigned-tasks", {
+      const r = await fetch("/api/teams", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          name,
+          memberUserIds: [...teamPick],
+        }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) {
-        setAssignError(
-          typeof j.error === "string" ? j.error : "Could not assign task",
+        setTeamError(
+          typeof j.error === "string" ? j.error : "Could not create team",
         );
         return;
       }
-      setAssignOpen(false);
+      setTeamName("");
+      setTeamPick(new Set());
       bump();
+      router.push(`/team/${(j as { id: string }).id}`);
     } finally {
-      setAssignLoading(false);
+      setTeamBusy(false);
     }
   }
 
@@ -188,8 +194,15 @@ export function FriendsClient() {
           Friends
         </h1>
         <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-          Look up members by the email they used to sign up for Nexus. Share
-          the app link yourself if they don’t have an account yet.
+          Add or remove friends. Build a team from accepted friends — use the{" "}
+          <Link href="/team" className="font-medium underline">
+            Team
+          </Link>{" "}
+          page to view shared calendars. Send tasks from{" "}
+          <Link href="/tasks" className="font-medium underline">
+            Tasks
+          </Link>
+          .
         </p>
       </header>
 
@@ -234,7 +247,7 @@ export function FriendsClient() {
         ) : null}
       </form>
 
-      <div className="grid gap-10 lg:grid-cols-[1fr,minmax(280px,340px)]">
+      <div className="grid gap-10 lg:grid-cols-[1fr,minmax(280px,380px)]">
         <div className="space-y-10">
           <section>
             <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
@@ -341,31 +354,38 @@ export function FriendsClient() {
             ) : (
               <ul className="mt-3 space-y-2">
                 {data.accepted.map((f) => (
-                  <li key={f.id}>
-                    <button
-                      type="button"
-                      onClick={() => setSelected(f)}
-                      className={cn(
-                        "flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition",
-                        selected?.id === f.id
-                          ? "border-neutral-900/30 bg-neutral-50 dark:border-neutral-100/20 dark:bg-neutral-800/80"
-                          : "border-neutral-200/80 bg-white/90 hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900/60 dark:hover:border-neutral-600",
-                      )}
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-neutral-100 text-xs font-semibold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
-                          {initials(f.peer.name, f.peer.email)}
+                  <li
+                    key={f.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-neutral-200/80 bg-white/90 px-4 py-3 dark:border-neutral-800 dark:bg-neutral-900/60"
+                  >
+                    <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={teamPick.has(f.peer.id)}
+                        onChange={() => toggleTeamMember(f.peer.id)}
+                        className="h-4 w-4 rounded border-neutral-300"
+                      />
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-neutral-100 text-xs font-semibold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                        {initials(f.peer.name, f.peer.email)}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium text-neutral-900 dark:text-neutral-50">
+                          {peerLabel(f)}
                         </span>
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-neutral-900 dark:text-neutral-50">
-                            {peerLabel(f)}
-                          </p>
-                          <p className="truncate text-xs text-neutral-500">
-                            {f.peer.email}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
+                        <span className="block truncate text-xs text-neutral-500">
+                          {f.peer.email}
+                        </span>
+                      </span>
+                    </label>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="shrink-0 rounded-xl text-neutral-500"
+                      onClick={() => void removeAcceptedFriend(f)}
+                    >
+                      Remove
+                    </Button>
                   </li>
                 ))}
               </ul>
@@ -375,98 +395,64 @@ export function FriendsClient() {
 
         <aside className="lg:sticky lg:top-28 lg:self-start">
           <div className="rounded-3xl border border-neutral-200/80 bg-white/90 p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/60">
-            {selected && data.accepted.some((a) => a.id === selected.id) ? (
-              <>
-                <div className="flex items-start gap-3">
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-neutral-100 text-sm font-semibold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
-                    {initials(selected.peer.name, selected.peer.email)}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-neutral-900 dark:text-neutral-50">
-                      {peerLabel(selected)}
-                    </p>
-                    <p className="text-sm text-neutral-500">
-                      {selected.peer.email}
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  className="mt-6 w-full rounded-2xl"
-                  onClick={() => openAssign(selected)}
-                >
-                  Assign task
-                </Button>
-              </>
-            ) : (
-              <div className="flex flex-col items-center py-8 text-center text-sm text-neutral-500">
-                <UserRound className="mb-3 h-10 w-10 opacity-40" strokeWidth={1.25} />
-                <p>Select a friend to assign a task.</p>
+            <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+              Build a team
+            </h2>
+            <p className="mt-1 text-xs text-neutral-500">
+              Tick friends above, name the team, and create. You are included
+              automatically. Then open Team to see everyone’s load and a shared
+              calendar.
+            </p>
+            <form
+              onSubmit={(e) => void submitCreateTeam(e)}
+              className="mt-4 space-y-4"
+            >
+              <div>
+                <Label htmlFor="team-name">Team name</Label>
+                <Input
+                  id="team-name"
+                  value={teamName}
+                  onChange={(e) => setTeamName(e.target.value)}
+                  placeholder="e.g. Study group"
+                  className="mt-1.5"
+                  maxLength={120}
+                />
               </div>
-            )}
+              {teamError ? (
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  {teamError}
+                </p>
+              ) : null}
+              <Button
+                type="submit"
+                className="w-full rounded-2xl"
+                disabled={
+                  teamBusy ||
+                  !teamName.trim() ||
+                  teamPick.size === 0 ||
+                  data.accepted.length === 0
+                }
+              >
+                {teamBusy ? "Creating…" : "Create team"}
+              </Button>
+            </form>
+            <Link
+              href="/team"
+              className={cn(
+                "mt-4 block text-center text-sm font-medium text-neutral-600 underline dark:text-neutral-300",
+              )}
+            >
+              View teams
+            </Link>
+            {data.accepted.length === 0 ? (
+              <div className="mt-6 flex flex-col items-center py-4 text-center text-sm text-neutral-500">
+                <UserRound className="mb-2 h-8 w-8 opacity-40" strokeWidth={1.25} />
+                <p>Add friends first to create a team.</p>
+              </div>
+            ) : null}
           </div>
         </aside>
       </div>
-
-      <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Assign task</DialogTitle>
-            <p className="text-sm text-neutral-500">
-              To {selected ? peerLabel(selected) : ""}
-            </p>
-          </DialogHeader>
-          <form onSubmit={(e) => void submitAssign(e)} className="space-y-4">
-            <div>
-              <Label htmlFor="asg-title">Title</Label>
-              <Input
-                id="asg-title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="mt-1.5"
-                required
-                maxLength={500}
-              />
-            </div>
-            <div>
-              <Label htmlFor="asg-detail">Detail</Label>
-              <Textarea
-                id="asg-detail"
-                value={detail}
-                onChange={(e) => setDetail(e.target.value)}
-                className="mt-1.5 min-h-[100px] rounded-2xl"
-                maxLength={8000}
-              />
-            </div>
-            <div>
-              <Label htmlFor="asg-deadline">Deadline</Label>
-              <Input
-                id="asg-deadline"
-                type="datetime-local"
-                value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
-                className="mt-1.5"
-              />
-              <p className="mt-1.5 text-xs text-neutral-500">
-                Workload is chosen by them when they accept (affects their to-do
-                and calendar block size).
-              </p>
-            </div>
-            {assignError ? (
-              <p className="text-sm text-red-600 dark:text-red-400">
-                {assignError}
-              </p>
-            ) : null}
-            <Button
-              type="submit"
-              disabled={assignLoading || !title.trim()}
-              className="w-full rounded-2xl"
-            >
-              {assignLoading ? "Sending…" : "Send"}
-            </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -29,7 +29,7 @@ function buildSystemPrompt(): string {
 
 ## Collaboration
 - Friends: sendFriendRequest (email), acceptFriendRequest (friendshipId), listFriends.
-- Assignments: assignTaskToFriend (recipientEmail + task fields), listAssignedTasks, acceptAssignedTask, requestAssignmentAdjustment, reviseAssignedTask, cancelAssignedTask, declineAssignedTask.
+- Shared tasks (Tasks in the app): assignTaskToFriend (recipientEmail + task fields), listAssignedTasks, acceptAssignedTask, requestAssignmentAdjustment, reviseAssignedTask, cancelAssignedTask, declineAssignedTask.
 - Notifications: listNotifications. Use listFriends / listAssignedTasks to obtain ids before accept or respond.
 - All task/event queries and mutations are scoped to the signed-in user only.
 

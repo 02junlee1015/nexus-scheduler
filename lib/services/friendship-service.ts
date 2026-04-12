@@ -374,3 +374,22 @@ export async function getFriendshipBetween(
   const row = await findBetween(a, b);
   return row ? { id: row.id, status: row.status } : null;
 }
+
+/** Remove an accepted friendship (either party). */
+export async function removeFriendship(
+  friendshipId: string,
+  actingUserId: string,
+): Promise<void> {
+  const row = await prisma.friendship.findUnique({
+    where: { id: friendshipId },
+  });
+  if (!row) throw new Error("NOT_FOUND");
+  if (
+    row.requesterUserId !== actingUserId &&
+    row.addresseeUserId !== actingUserId
+  ) {
+    throw new Error("FORBIDDEN");
+  }
+  if (row.status !== "accepted") throw new Error("INVALID_STATE");
+  await prisma.friendship.delete({ where: { id: friendshipId } });
+}

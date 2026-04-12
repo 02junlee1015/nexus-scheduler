@@ -9,6 +9,7 @@ import {
   Layers,
   UsersRound,
   Inbox,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
@@ -18,7 +19,8 @@ const items = [
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/flex", label: "Long-Term", icon: Layers },
   { href: "/friends", label: "Friends", icon: UsersRound },
-  { href: "/assignments", label: "Assignments", icon: Inbox },
+  { href: "/team", label: "Team", icon: Users },
+  { href: "/tasks", label: "Tasks", icon: Inbox },
 ];
 
 export function Sidebar() {
