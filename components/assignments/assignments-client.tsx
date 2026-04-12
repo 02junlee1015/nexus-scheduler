@@ -2,11 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { useAppStore } from "@/lib/store/app-store";
 import { cn } from "@/lib/utils/cn";
-import { ChevronRight } from "lucide-react";
+import { workloadVisual, type WorkloadLevel } from "@/lib/constants/workload";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ChevronRight, Plus } from "lucide-react";
 
 type AssignedDTO = {
   id: string;
@@ -27,6 +38,8 @@ type AssignedDTO = {
 };
 
 type Tab = "inbox" | "sent" | "all";
+
+type FriendPeer = { id: string; email: string; name: string };
 
 function statusStyle(status: string): string {
   switch (status) {
@@ -50,6 +63,8 @@ function formatStatus(status: string) {
 }
 
 export function AssignmentsClient() {
+  const router = useRouter();
+  const bump = useAppStore((s) => s.bumpDataEpoch);
   const dataEpoch = useAppStore((s) => s.dataEpoch);
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
@@ -59,6 +74,17 @@ export function AssignmentsClient() {
   const [meId, setMeId] = useState<string | null>(null);
   const [items, setItems] = useState<AssignedDTO[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [friends, setFriends] = useState<FriendPeer[]>([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [recipientUserId, setRecipientUserId] = useState("");
+  const [asgTitle, setAsgTitle] = useState("");
+  const [asgDetail, setAsgDetail] = useState("");
+  const [asgDeadline, setAsgDeadline] = useState("");
+  const [asgWl, setAsgWl] = useState<WorkloadLevel>(2);
+  const [asgBusy, setAsgBusy] = useState(false);
+  const [asgErr, setAsgErr] = useState<string | null>(null);
 
   useEffect(() => {
     let c = false;
@@ -91,6 +117,82 @@ export function AssignmentsClient() {
     void load();
   }, [load, dataEpoch]);
 
+  const loadFriends = useCallback(async () => {
+    setFriendsLoading(true);
+    try {
+      const r = await fetch("/api/friends");
+      if (!r.ok) return;
+      const j = (await r.json()) as {
+        accepted: { peer: FriendPeer }[];
+      };
+      const peers = (j.accepted ?? []).map((x) => x.peer);
+      setFriends(peers);
+      setRecipientUserId((cur) => {
+        if (cur && peers.some((p) => p.id === cur)) return cur;
+        return peers[0]?.id ?? "";
+      });
+    } finally {
+      setFriendsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!assignOpen) return;
+    void loadFriends();
+  }, [assignOpen, loadFriends]);
+
+  async function submitAssign(e: React.FormEvent) {
+    e.preventDefault();
+    setAsgErr(null);
+    const title = asgTitle.trim();
+    if (!title) {
+      setAsgErr("Add a title.");
+      return;
+    }
+    if (!recipientUserId) {
+      setAsgErr("Pick a friend to assign to.");
+      return;
+    }
+    setAsgBusy(true);
+    try {
+      const body: Record<string, unknown> = {
+        recipientUserId,
+        title,
+        detail: asgDetail.trim(),
+        expectedWorkload: asgWl,
+      };
+      if (asgDeadline.trim()) {
+        body.deadline = new Date(asgDeadline).toISOString();
+      } else {
+        body.deadline = null;
+      }
+      const r = await fetch("/api/assigned-tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setAsgErr(
+          typeof j.error === "string"
+            ? j.error
+            : "Could not send. Check you are friends with them.",
+        );
+        return;
+      }
+      bump();
+      setAssignOpen(false);
+      setAsgTitle("");
+      setAsgDetail("");
+      setAsgDeadline("");
+      setAsgWl(2);
+      router.push("/tasks?tab=sent");
+      router.refresh();
+    } finally {
+      setAsgBusy(false);
+    }
+  }
+
   const filtered = useMemo(() => {
     if (tab === "inbox") {
       return items.filter((a) =>
@@ -110,14 +212,134 @@ export function AssignmentsClient() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
-          Tasks
-        </h1>
-        <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-          Tasks shared between you and friends — respond or follow up here.
-        </p>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+            Tasks
+          </h1>
+          <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+            Assign work to friends, then track inbox and sent here.
+          </p>
+        </div>
+        <Button
+          type="button"
+          className="shrink-0 gap-2 rounded-2xl"
+          onClick={() => {
+            setAsgErr(null);
+            setAssignOpen(true);
+          }}
+        >
+          <Plus className="h-4 w-4" strokeWidth={2} />
+          Assign task
+        </Button>
       </header>
+
+      <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto rounded-3xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign task to a friend</DialogTitle>
+          </DialogHeader>
+          {friendsLoading ? (
+            <p className="text-sm text-neutral-500">Loading friends…</p>
+          ) : friends.length === 0 ? (
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              You need an accepted friend first.{" "}
+              <Link href="/friends" className="font-medium underline">
+                Open Friends
+              </Link>
+            </p>
+          ) : (
+            <form onSubmit={(e) => void submitAssign(e)} className="space-y-4">
+              <div>
+                <Label htmlFor="assign-to">To</Label>
+                <select
+                  id="assign-to"
+                  value={recipientUserId}
+                  onChange={(e) => setRecipientUserId(e.target.value)}
+                  className="mt-1.5 flex h-10 w-full rounded-2xl border border-neutral-200/90 bg-white/80 px-4 text-sm dark:border-neutral-700 dark:bg-neutral-900/50"
+                  required
+                >
+                  {friends.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name?.trim() || p.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="assign-title">Title</Label>
+                <Input
+                  id="assign-title"
+                  value={asgTitle}
+                  onChange={(e) => setAsgTitle(e.target.value)}
+                  className="mt-1.5 rounded-2xl"
+                  placeholder="What should they do?"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="assign-detail">Detail (optional)</Label>
+                <Textarea
+                  id="assign-detail"
+                  value={asgDetail}
+                  onChange={(e) => setAsgDetail(e.target.value)}
+                  className="mt-1.5 rounded-2xl"
+                  rows={3}
+                />
+              </div>
+              <div>
+                <Label htmlFor="assign-dl">Deadline (optional)</Label>
+                <Input
+                  id="assign-dl"
+                  type="datetime-local"
+                  value={asgDeadline}
+                  onChange={(e) => setAsgDeadline(e.target.value)}
+                  className="mt-1.5 rounded-2xl"
+                />
+              </div>
+              <div>
+                <Label htmlFor="assign-wl">Suggested workload</Label>
+                <select
+                  id="assign-wl"
+                  value={asgWl}
+                  onChange={(e) =>
+                    setAsgWl(Number(e.target.value) as WorkloadLevel)
+                  }
+                  className="mt-1.5 flex h-10 w-full rounded-2xl border border-neutral-200/90 bg-white/80 px-4 text-sm dark:border-neutral-700 dark:bg-neutral-900/50"
+                >
+                  {([1, 2, 3] as const).map((lvl) => (
+                    <option key={lvl} value={lvl}>
+                      {lvl} — {workloadVisual[lvl].label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {asgErr ? (
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  {asgErr}
+                </p>
+              ) : null}
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-2xl"
+                  onClick={() => setAssignOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={asgBusy}
+                  className="rounded-2xl"
+                >
+                  {asgBusy ? "Sending…" : "Send task"}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <div className="flex flex-wrap gap-2">
         {tabs.map((t) => (
