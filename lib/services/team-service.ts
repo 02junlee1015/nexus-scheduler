@@ -203,44 +203,46 @@ export async function getTeamOverview(
   if (!summary) throw new Error("NOT_FOUND");
 
   const ids = await memberUserIds(teamId);
-  const members: TeamMemberOverviewDTO[] = [];
+  const byId = new Map(
+    summary.members.map((m) => [m.userId, m]),
+  );
 
-  for (const uid of ids) {
-    const user = await prisma.user.findUniqueOrThrow({
-      where: { id: uid },
-      select: { id: true, email: true, name: true },
-    });
+  const members = await Promise.all(
+    ids.map(async (uid) => {
+      const u = byId.get(uid);
+      if (!u) throw new Error("NOT_FOUND");
 
-    const [nextRaw, doneRows] = await Promise.all([
-      prisma.task.findMany({
-        where: { userId: uid, status: { not: "done" } },
-        take: 40,
-        include: { calendarEvent: { select: { id: true } } },
-      }),
-      prisma.task.findMany({
-        where: { userId: uid, status: "done" },
-        orderBy: { updatedAt: "desc" },
-        take: 8,
-        include: { calendarEvent: { select: { id: true } } },
-      }),
-    ]);
+      const [nextRaw, doneRows] = await Promise.all([
+        prisma.task.findMany({
+          where: { userId: uid, status: { not: "done" } },
+          take: 40,
+          include: { calendarEvent: { select: { id: true } } },
+        }),
+        prisma.task.findMany({
+          where: { userId: uid, status: "done" },
+          orderBy: { updatedAt: "desc" },
+          take: 8,
+          include: { calendarEvent: { select: { id: true } } },
+        }),
+      ]);
 
-    const nextRows = [...nextRaw].sort((a, b) => {
-      if (!a.dueDate && !b.dueDate)
-        return b.createdAt.getTime() - a.createdAt.getTime();
-      if (!a.dueDate) return 1;
-      if (!b.dueDate) return -1;
-      return a.dueDate.getTime() - b.dueDate.getTime();
-    }).slice(0, 6);
+      const nextRows = [...nextRaw].sort((a, b) => {
+        if (!a.dueDate && !b.dueDate)
+          return b.createdAt.getTime() - a.createdAt.getTime();
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        return a.dueDate.getTime() - b.dueDate.getTime();
+      }).slice(0, 6);
 
-    members.push({
-      userId: user.id,
-      email: user.email,
-      name: user.name,
-      nextTasks: nextRows.map(taskToDTO),
-      recentDone: doneRows.map(taskToDTO),
-    });
-  }
+      return {
+        userId: u.userId,
+        email: u.email,
+        name: u.name,
+        nextTasks: nextRows.map(taskToDTO),
+        recentDone: doneRows.map(taskToDTO),
+      };
+    }),
+  );
 
   return { team: summary, members };
 }
@@ -263,10 +265,9 @@ export async function listTeamEvents(
     where: { id: { in: ids } },
     select: { id: true, name: true, email: true },
   });
-  const label = (id: string) => {
-    const u = users.find((x) => x.id === id);
-    return u?.name?.trim() || u?.email || id;
-  };
+  const labelById = new Map(
+    users.map((u) => [u.id, u.name?.trim() || u.email || u.id]),
+  );
 
   const rows = await prisma.calendarEvent.findMany({
     where: {
@@ -284,7 +285,7 @@ export async function listTeamEvents(
   return rows.map((e) => ({
     ...eventToDTO({ ...e, userId: e.userId }),
     memberUserId: e.userId,
-    memberName: label(e.userId),
+    memberName: labelById.get(e.userId) ?? e.userId,
   }));
 }
 

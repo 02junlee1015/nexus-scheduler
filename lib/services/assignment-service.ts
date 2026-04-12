@@ -23,17 +23,23 @@ export type AssignedTaskRequestDTO = {
   recipient: { id: string; email: string; name: string };
 };
 
+type UserStub = { id: string; email: string; name: string };
+
+async function loadUsersByIds(ids: Iterable<string>): Promise<Map<string, UserStub>> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return new Map();
+  const rows = await prisma.user.findMany({
+    where: { id: { in: unique } },
+    select: { id: true, email: true, name: true },
+  });
+  return new Map(rows.map((u) => [u.id, u]));
+}
+
 async function loadUsers(senderId: string, recipientId: string) {
-  const [sender, recipient] = await Promise.all([
-    prisma.user.findUniqueOrThrow({
-      where: { id: senderId },
-      select: { id: true, email: true, name: true },
-    }),
-    prisma.user.findUniqueOrThrow({
-      where: { id: recipientId },
-      select: { id: true, email: true, name: true },
-    }),
-  ]);
+  const m = await loadUsersByIds([senderId, recipientId]);
+  const sender = m.get(senderId);
+  const recipient = m.get(recipientId);
+  if (!sender || !recipient) throw new Error("USER_NOT_FOUND");
   return { sender, recipient };
 }
 
@@ -161,15 +167,18 @@ export async function listAssignmentsForUser(
     take: 100,
   });
 
-  const out: AssignedTaskRequestDTO[] = [];
+  const userIds: string[] = [];
   for (const row of rows) {
-    const { sender, recipient } = await loadUsers(
-      row.senderUserId,
-      row.recipientUserId,
-    );
-    out.push(toDTO(row, sender, recipient));
+    userIds.push(row.senderUserId, row.recipientUserId);
   }
-  return out;
+  const userMap = await loadUsersByIds(userIds);
+
+  return rows.map((row) => {
+    const sender = userMap.get(row.senderUserId);
+    const recipient = userMap.get(row.recipientUserId);
+    if (!sender || !recipient) throw new Error("USER_NOT_FOUND");
+    return toDTO(row, sender, recipient);
+  });
 }
 
 export async function acceptAssignment(

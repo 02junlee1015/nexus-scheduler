@@ -38,7 +38,6 @@ function badgeForDue(
 export async function getDashboardData(userId: string) {
   const now = new Date();
   const weekEnd = addDays(now, 7);
-  const userWhere = { userId };
 
   const [
     totalOpen,
@@ -48,7 +47,6 @@ export async function getDashboardData(userId: string) {
     urgentCandidates,
     recentPage,
     recentDonePage,
-    linked,
     assignmentInbox,
     assignmentNeedsRevision,
   ] = await Promise.all([
@@ -81,10 +79,6 @@ export async function getDashboardData(userId: string) {
     }),
     listTasksPaged({ userId, sort: "due" }, 8, 0),
     listTasksPaged({ userId, scope: "done", sort: "updated" }, 8, 0),
-    prisma.calendarEvent.findMany({
-      where: userWhere,
-      select: { id: true, linkedTaskId: true },
-    }),
     prisma.assignedTaskRequest.count({
       where: {
         recipientUserId: userId,
@@ -98,6 +92,15 @@ export async function getDashboardData(userId: string) {
       },
     }),
   ]);
+
+  const urgentTaskIds = urgentCandidates.map((t) => t.id);
+  const linked =
+    urgentTaskIds.length === 0
+      ? []
+      : await prisma.calendarEvent.findMany({
+          where: { userId, linkedTaskId: { in: urgentTaskIds } },
+          select: { id: true, linkedTaskId: true },
+        });
 
   const workloadDist = { 1: 0, 2: 0, 3: 0 } as Record<1 | 2 | 3, number>;
   for (const row of workloadRows) {
