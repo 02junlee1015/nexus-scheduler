@@ -52,6 +52,8 @@ export function TodoClient() {
   const [due, setDue] = useState("");
   const [status, setStatus] = useState<TaskStatus>("todo");
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     const t = searchParams.get("tab");
@@ -62,6 +64,7 @@ export function TodoClient() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     const params = new URLSearchParams();
     if (listTab === "active") params.set("scope", "active");
     if (listTab === "done") {
@@ -74,10 +77,19 @@ export function TodoClient() {
     const effectiveSort =
       listTab === "done" && sort === "due" ? "updated" : sort;
     params.set("sort", effectiveSort);
-    params.set("hasDue", "1");
     if (q.trim()) params.set("q", q.trim());
 
     const r = await fetch(`/api/tasks?${params}`);
+    if (!r.ok) {
+      setTasks([]);
+      setLoadError(
+        r.status === 401
+          ? "로그인이 필요합니다."
+          : "목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      );
+      setLoading(false);
+      return;
+    }
     const data = (await r.json()) as
       | TaskDTO[]
       | { items: TaskDTO[]; total: number };
@@ -98,6 +110,7 @@ export function TodoClient() {
     setWorkload(2);
     setDue("");
     setStatus("todo");
+    setSaveError(null);
     setOpen(true);
   };
 
@@ -109,12 +122,14 @@ export function TodoClient() {
     setWorkload(t.expectedWorkload as WorkloadLevel);
     setDue(toLocalInput(t.dueDate));
     setStatus(t.status);
+    setSaveError(null);
     setOpen(true);
   };
 
   const save = async () => {
     if (!title.trim()) return;
     setSaving(true);
+    setSaveError(null);
     try {
       const body = {
         title: title.trim(),
@@ -124,18 +139,27 @@ export function TodoClient() {
         dueDate: due ? new Date(due).toISOString() : null,
         status,
       };
-      if (editing) {
-        await fetch(`/api/tasks/${editing.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-      } else {
-        await fetch("/api/tasks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
+      const r = editing
+        ? await fetch(`/api/tasks/${editing.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          })
+        : await fetch("/api/tasks", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const msg =
+          typeof j.error === "string"
+            ? j.error
+            : typeof j.message === "string"
+              ? j.message
+              : "저장에 실패했습니다.";
+        setSaveError(msg);
+        return;
       }
       setOpen(false);
       bump();
@@ -197,7 +221,7 @@ export function TodoClient() {
           <h1 className="text-2xl font-semibold tracking-tight">To-Do</h1>
           <p className="mt-1 text-sm text-neutral-500">{filteredLabel}</p>
           <p className="mt-0.5 text-xs text-neutral-400">
-            마감일 없는 작업은 Long-Term에만 보여요.
+            마감 없는 작업도 여기 목록에 나옵니다. Long-Term은 마감 없는 일만 모아 보는 화면이에요.
           </p>
         </div>
         <Button onClick={openNew} className="shrink-0 gap-2">
@@ -273,6 +297,12 @@ export function TodoClient() {
           새로고침
         </Button>
       </div>
+
+      {loadError ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
+          {loadError}
+        </div>
+      ) : null}
 
       {loading ? (
         <p className="text-sm text-neutral-500">불러오는 중…</p>
@@ -401,7 +431,13 @@ export function TodoClient() {
         </ul>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          setOpen(v);
+          if (!v) setSaveError(null);
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{editing ? "작업 수정" : "새 작업"}</DialogTitle>
@@ -480,11 +516,16 @@ export function TodoClient() {
                 onChange={(e) => setDue(e.target.value)}
               />
             </div>
+            {saveError ? (
+              <p className="text-sm text-red-600 dark:text-red-400">
+                {saveError}
+              </p>
+            ) : null}
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="secondary" onClick={() => setOpen(false)}>
                 취소
               </Button>
-              <Button onClick={save} disabled={saving || !title.trim()}>
+              <Button onClick={() => void save()} disabled={saving || !title.trim()}>
                 {saving ? "저장 중…" : "저장"}
               </Button>
             </div>

@@ -55,15 +55,28 @@ export function FriendsClient() {
   const [teamPick, setTeamPick] = useState<Set<string>>(() => new Set());
   const [teamError, setTeamError] = useState<string | null>(null);
   const [teamBusy, setTeamBusy] = useState(false);
+  const [listFetching, setListFetching] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    setListFetching(true);
+    setListError(null);
     const r = await fetch("/api/friends");
-    if (!r.ok) return;
+    if (!r.ok) {
+      setListError(
+        r.status === 401
+          ? "로그인이 필요합니다. 다시 로그인한 뒤 새로고침해 주세요."
+          : "친구 목록을 불러오지 못했습니다. 네트워크나 서버 상태를 확인해 주세요.",
+      );
+      setListFetching(false);
+      return;
+    }
     const j = (await r.json()) as FriendsPayload;
     setData({
       ...j,
       pendingInvites: j.pendingInvites ?? [],
     });
+    setListFetching(false);
   }, []);
 
   useEffect(() => {
@@ -178,6 +191,33 @@ export function FriendsClient() {
     }
   }
 
+  if (listFetching && !data) {
+    return (
+      <div className="mx-auto max-w-5xl animate-pulse space-y-6 py-4">
+        <div className="h-10 w-40 rounded-xl bg-neutral-200/70 dark:bg-neutral-800" />
+        <div className="h-24 rounded-2xl bg-neutral-200/50 dark:bg-neutral-800/80" />
+      </div>
+    );
+  }
+
+  if (listError && !data) {
+    return (
+      <div className="mx-auto max-w-5xl space-y-6 py-8">
+        <h1 className="text-2xl font-semibold tracking-tight">Friends</h1>
+        <div className="rounded-2xl border border-red-200 bg-red-50/80 px-5 py-8 text-center dark:border-red-900/50 dark:bg-red-950/30">
+          <p className="text-sm text-red-800 dark:text-red-200">{listError}</p>
+          <Button
+            type="button"
+            className="mt-4 rounded-2xl"
+            onClick={() => void load()}
+          >
+            다시 시도
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (!data) {
     return (
       <div className="mx-auto max-w-5xl animate-pulse space-y-6 py-4">
@@ -189,6 +229,18 @@ export function FriendsClient() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-10">
+      {listError ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/25 dark:text-amber-100">
+          {listError}{" "}
+          <button
+            type="button"
+            className="font-medium underline"
+            onClick={() => void load()}
+          >
+            새로고침
+          </button>
+        </div>
+      ) : null}
       <header>
         <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
           Friends
