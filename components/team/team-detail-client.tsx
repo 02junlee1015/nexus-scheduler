@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import FullCalendar from "@fullcalendar/react";
@@ -66,6 +66,75 @@ function formatEventSpan(e: CalendarRow) {
   }
 }
 
+const calendarPlugins = [
+  luxonPlugin,
+  dayGridPlugin,
+  timeGridPlugin,
+  listPlugin,
+] as const;
+
+const calendarHeader = {
+  left: "prev,next today",
+  center: "title",
+  right: "dayGridMonth,timeGridWeek,listWeek",
+} as const;
+
+/** Isolated from parent state so loading events does not re-render FullCalendar (flicker). */
+const TeamCalendarPane = memo(function TeamCalendarPane({
+  teamId,
+  onRangeEvents,
+}: {
+  teamId: string;
+  onRangeEvents: (items: CalendarRow[]) => void;
+}) {
+  const fetchForCalendar = useCallback(
+    async (startStr: string, endStr: string): Promise<EventInput[]> => {
+      const r = await fetch(
+        `/api/teams/${teamId}/events?start=${encodeURIComponent(startStr)}&end=${encodeURIComponent(endStr)}`,
+      );
+      if (!r.ok) {
+        onRangeEvents([]);
+        return [];
+      }
+      const j = (await r.json()) as { items: CalendarRow[] };
+      onRangeEvents(j.items);
+      return j.items.map((e) => ({
+        id: `${e.memberUserId}:${e.id}`,
+        title: `${e.memberName}: ${e.title}`,
+        start: e.startDateTime,
+        end: e.endDateTime,
+        backgroundColor: memberColor(e.memberUserId),
+        borderColor: memberColor(e.memberUserId),
+        classNames:
+          e.linkedTaskStatus === "done" ? ["fc-event-completed"] : undefined,
+        extendedProps: { raw: e },
+      }));
+    },
+    [teamId, onRangeEvents],
+  );
+
+  return (
+    <div className="rounded-3xl border border-neutral-200/80 bg-white/90 p-4 dark:border-neutral-800 dark:bg-neutral-900/50">
+      <FullCalendar
+        plugins={[...calendarPlugins]}
+        timeZone={APP_TIME_ZONE}
+        initialView="dayGridMonth"
+        headerToolbar={calendarHeader}
+        height="auto"
+        dayMaxEvents
+        events={async (info, successCallback, failureCallback) => {
+          try {
+            const evs = await fetchForCalendar(info.startStr, info.endStr);
+            successCallback(evs);
+          } catch (e) {
+            failureCallback(e as Error);
+          }
+        }}
+      />
+    </div>
+  );
+});
+
 export function TeamDetailClient({
   teamId,
   meId,
@@ -80,6 +149,9 @@ export function TeamDetailClient({
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [rangeEvents, setRangeEvents] = useState<CalendarRow[]>([]);
+  const onRangeEvents = useCallback((items: CalendarRow[]) => {
+    setRangeEvents(items);
+  }, []);
 
   const load = useCallback(async () => {
     setErr(null);
@@ -106,32 +178,6 @@ export function TeamDetailClient({
   useEffect(() => {
     void load();
   }, [load]);
-
-  const fetchTeamEvents = useCallback(
-    async (startStr: string, endStr: string): Promise<EventInput[]> => {
-      const r = await fetch(
-        `/api/teams/${teamId}/events?start=${encodeURIComponent(startStr)}&end=${encodeURIComponent(endStr)}`,
-      );
-      if (!r.ok) {
-        setRangeEvents([]);
-        return [];
-      }
-      const j = (await r.json()) as { items: CalendarRow[] };
-      setRangeEvents(j.items);
-      return j.items.map((e) => ({
-        id: `${e.memberUserId}:${e.id}`,
-        title: `${e.memberName}: ${e.title}`,
-        start: e.startDateTime,
-        end: e.endDateTime,
-        backgroundColor: memberColor(e.memberUserId),
-        borderColor: memberColor(e.memberUserId),
-        classNames:
-          e.linkedTaskStatus === "done" ? ["fc-event-completed"] : undefined,
-        extendedProps: { raw: e },
-      }));
-    },
-    [teamId],
-  );
 
   async function deleteTeam() {
     if (!team || !confirm(`Delete team “${team.name}”?`)) return;
@@ -200,33 +246,7 @@ export function TeamDetailClient({
         <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-neutral-500">
           Team calendar
         </h2>
-        <div className="rounded-3xl border border-neutral-200/80 bg-white/90 p-4 dark:border-neutral-800 dark:bg-neutral-900/50">
-          <FullCalendar
-            plugins={[
-              luxonPlugin,
-              dayGridPlugin,
-              timeGridPlugin,
-              listPlugin,
-            ]}
-            timeZone={APP_TIME_ZONE}
-            initialView="dayGridMonth"
-            headerToolbar={{
-              left: "prev,next today",
-              center: "title",
-              right: "dayGridMonth,timeGridWeek,listWeek",
-            }}
-            height="auto"
-            dayMaxEvents
-            events={async (info, successCallback, failureCallback) => {
-              try {
-                const evs = await fetchTeamEvents(info.startStr, info.endStr);
-                successCallback(evs);
-              } catch (e) {
-                failureCallback(e as Error);
-              }
-            }}
-          />
-        </div>
+        <TeamCalendarPane teamId={teamId} onRangeEvents={onRangeEvents} />
       </section>
 
       <section className="space-y-8">
